@@ -128,6 +128,8 @@ function AdminPage() {
       }
     };
     load();
+    // Password-authenticated admin cannot receive private rows through anonymous realtime.
+    const refreshTimer = window.setInterval(load, 30000);
 
     const channel = supabase
       .channel("funnel_events_live")
@@ -145,6 +147,7 @@ function AdminPage() {
 
     return () => {
       cancelled = true;
+      window.clearInterval(refreshTimer);
       supabase.removeChannel(channel);
     };
   }, [authed, password, fetchFunnel, windowMinutes]);
