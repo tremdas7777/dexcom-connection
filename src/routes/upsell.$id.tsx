@@ -19,7 +19,15 @@ import { Shell } from "@/components/checkout/OrderShell";
 
 export const Route = createFileRoute("/upsell/$id")({
   head: () => ({
-    meta: [{ title: "Oferta especial | G7" }, { name: "robots", content: "noindex" }],
+    meta: [
+      { title: "Oferta especial | G7" },
+      { name: "description", content: "Oferta adicional para o pedido G7." },
+      { property: "og:title", content: "Oferta especial | G7" },
+      { property: "og:description", content: "Oferta adicional para o pedido G7." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+      { name: "robots", content: "noindex,nofollow" },
+    ],
   }),
   component: Page,
 });

@@ -39,7 +39,6 @@ export const Route = createFileRoute("/produto")({
         content: `Sensor CGM ${brand.productShort} para acompanhar glicose 24h no celular. A partir de ${brl(entryPrice)} · kit com 2 sensores para 1 mês.`,
       },
       { property: "og:url", content: "/produto" },
-      { property: "og:image", content: productHeroImage },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],

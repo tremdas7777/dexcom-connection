@@ -17,6 +17,8 @@ export const Route = createFileRoute("/faq")({
         content: "Saiba como funciona o monitoramento contínuo de glicose Dexcom G7, os planos e o envio.",
       },
       { property: "og:url", content: "/faq" },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
     links: [{ rel: "canonical", href: "/faq" }],
   }),

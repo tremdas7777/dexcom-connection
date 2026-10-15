@@ -14,6 +14,8 @@ export const Route = createFileRoute("/contato")({
       { property: "og:title", content: `Contato ${brand.name}` },
       { property: "og:description", content: `Fale com a equipe ${brand.name}.` },
       { property: "og:url", content: "/contato" },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
     links: [{ rel: "canonical", href: "/contato" }],
   }),

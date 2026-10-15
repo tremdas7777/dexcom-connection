@@ -12,6 +12,8 @@ export const Route = createFileRoute("/sobre")({
       { property: "og:title", content: `Sobre a ${brand.name}` },
       { property: "og:description", content: "Loja independente e revendedora autorizada dos sensores Dexcom G7." },
       { property: "og:url", content: "/sobre" },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
     links: [{ rel: "canonical", href: "/sobre" }],
   }),

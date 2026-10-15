@@ -1,0 +1,55 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1792027627684,
+      "tag": "0000_restore_funnel_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792027643544,
+      "tag": "0001_restore_site_settings",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792027682618,
+      "tag": "0002_restore_rastreios",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792027697715,
+      "tag": "0003_restore_private_settings",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792027714161,
+      "tag": "0004_restore_pix_orders",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792027729863,
+      "tag": "0005_restore_pix_report_result",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792027899320,
+      "tag": "0006_protect_tracking_customer_data",
+      "breakpoints": true
+    }
+  ]
+}
