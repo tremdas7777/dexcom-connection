@@ -12,6 +12,7 @@ import {
 } from "@/lib/pix-orders.server";
 import { createCardTransaction, CARD_ORDER_PREFIX, getHypercashKeys } from "@/lib/hypercash.server";
 import { createPix } from "@/lib/pix-gateway.server";
+import { getGatewayProductName } from "@/lib/gateway-name.server";
 import { isPaidStatus } from "@/lib/pix-status";
 import { UPSELL_PRODUCTS, upsellSelection } from "@/lib/upsell";
 import { getRequest } from "@tanstack/react-start/server";
@@ -119,8 +120,8 @@ export const createPixCharge = createServerFn({ method: "POST" })
       amount,
       customer: { name: data.name, email: data.email, phone: data.phone, cpf: data.cpf },
       address: data.address,
-      // Nome genérico enviado ao gateway — sem detalhes do produto real.
-      description: "Glicomax",
+      // Nome do produto no gateway — definido no /admin.
+      description: await getGatewayProductName(),
       origin: data.origin,
       ip,
     });
@@ -236,9 +237,9 @@ export const createCardCharge = createServerFn({ method: "POST" })
       customer: { name: data.name, email: data.email, phone: data.phone, cpf: data.cpf },
       address,
       shippingFee: totals.frete,
-      // Nome genérico (igual ao Pix) — sem detalhes do produto real na fatura.
+      // Mesmo nome do Pix (definido no /admin).
       items: [
-        { title: "Glicomax", unitPrice: Math.round(bundle.price * 100), quantity: 1 },
+        { title: await getGatewayProductName(), unitPrice: Math.round(bundle.price * 100), quantity: 1 },
         ...chosenBumps(data).map((b) => ({
           title: b.gatewayName,
           unitPrice: Math.round(b.price * 100),
@@ -460,7 +461,7 @@ export const createUpsellCharge = createServerFn({ method: "POST" })
       amount,
       customer: { name: c.name, email: c.email, phone: c.phone, cpf: c.cpf },
       address: c.address,
-      description: "Glicomax",
+      description: await getGatewayProductName(),
       origin: data.origin,
       ip,
     });

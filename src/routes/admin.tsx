@@ -8,6 +8,7 @@ import { UtmifyCard } from "@/components/admin/UtmifyCard";
 import { HypercashCard } from "@/components/admin/HypercashCard";
 import { PixGatewayCard } from "@/components/admin/PixGatewayCard";
 import { MetaPixelCard } from "@/components/admin/MetaPixelCard";
+import { GatewayNameCard } from "@/components/admin/GatewayNameCard";
 import { OrdersTab } from "@/components/admin/OrdersTab";
 import { AbandonedTab } from "@/components/admin/AbandonedTab";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -288,6 +289,7 @@ function AdminPage() {
                 </div>
               </Card>
               <PixGatewayCard password={password} />
+              <GatewayNameCard password={password} />
               <HypercashCard password={password} />
               <UtmifyCard password={password} />
               <MetaPixelCard password={password} />
