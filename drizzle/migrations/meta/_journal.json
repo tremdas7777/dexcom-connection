@@ -22,6 +22,13 @@
       "when": 1792027682618,
       "tag": "0002_restore_rastreios",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792027697715,
+      "tag": "0003_restore_private_settings",
+      "breakpoints": true
     }
   ]
 }
