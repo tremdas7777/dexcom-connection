@@ -38,8 +38,8 @@ export type GalleryItem = {
 export const productGallery: GalleryItem[] = [
   {
     src: imgProdKit,
-    alt: "Dexcom G7 15 Dias — caixa com sensor e aplicador",
-    caption: "Monitoramento sem calibração",
+    alt: "Dexcom G7 — plano mensal com 2 sensores para 30 dias",
+    caption: "Plano mensal · 2 sensores",
     bg: "#ffffff",
   },
   {
