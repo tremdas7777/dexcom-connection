@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
 
 function normalizeCpf(input: string): string {
   return (input || "").replace(/\D/g, "").slice(0, 11);
@@ -17,18 +18,8 @@ export type RastreioStatus =
   | "saiu_entrega"
   | "entregue";
 
-export function computeStatus(dataCriacao: string): RastreioStatus {
-  const start = new Date(dataCriacao).getTime();
-  const days = (Date.now() - start) / (1000 * 60 * 60 * 24);
-  if (days >= 21) return "entregue";
-  if (days >= 18) return "saiu_entrega";
-  if (days >= 7) return "em_transito";
-  if (days >= 3) return "postado";
-  return "pedido_recebido";
-}
-
 export const trackByCpf = createServerFn({ method: "POST" })
-  .inputValidator((input: { cpf: string }) => input)
+  .inputValidator((input: unknown) => z.object({ cpf: z.string().min(11).max(18) }).parse(input))
   .handler(async ({ data }) => {
     const cpf = normalizeCpf(data.cpf);
     if (!isValidCpf(cpf)) {
@@ -38,13 +29,15 @@ export const trackByCpf = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     // Pedido pago mais recente desse CPF — de onde vêm o código e o link reais da transportadora (Rotasync).
-    const { data: order } = await supabaseAdmin
+    const { data: order, error: orderError } = await supabaseAdmin
       .from("pix_orders")
       .select("id, created_at, report_result")
       .filter("customer->>cpf", "eq", cpf)
+      .eq("status", "paid")
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
+    if (orderError) throw new Error(orderError.message);
 
     const rastro = (order?.report_result as
       | { rastro?: { ok?: boolean; trackingCode?: string; trackingUrl?: string } }
@@ -53,40 +46,16 @@ export const trackByCpf = createServerFn({ method: "POST" })
     const trackingUrl = rastro?.ok ? rastro.trackingUrl : undefined;
 
     // Lookup by codigo_rastreio = CPF
-    const { data: existing } = await supabaseAdmin
+    const { data: existing, error: trackingError } = await supabaseAdmin
       .from("rastreios")
       .select("*")
       .eq("codigo_rastreio", cpf)
       .maybeSingle();
-
-    let row = existing;
-    if (!row) {
-      const pedido = "AID" + cpf.slice(-6) + Math.floor(Math.random() * 90 + 10);
-      const { data: inserted, error } = await supabaseAdmin
-        .from("rastreios")
-        .insert({
-          pedido,
-          nome: "Cliente",
-          email: "",
-          codigo_rastreio: cpf,
-          status: "pedido_recebido",
-        })
-        .select("*")
-        .single();
-      if (error) throw new Error(error.message);
-      row = inserted;
-    }
-
-    const status = computeStatus(row.data_criacao);
-
-    // Persist updated status if changed
-    if (status !== row.status) {
-      await supabaseAdmin
-        .from("rastreios")
-        .update({ status, data_atualizacao: new Date().toISOString() })
-        .eq("id", row.id);
-      row.status = status;
-    }
+    if (trackingError) throw new Error(trackingError.message);
+    // Consulta não cria pedidos nem inventa movimentações de transporte.
+    const row = existing;
+    if (!row) throw new Error("Rastreio não encontrado para este CPF.");
+    const status = row.status as RastreioStatus;
 
     return {
       pedido: row.pedido,

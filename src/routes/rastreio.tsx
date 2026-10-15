@@ -13,6 +13,8 @@ export const Route = createFileRoute("/rastreio")({
       { property: "og:title", content: "Rastrear Pedido" },
       { property: "og:description", content: "Acompanhe a entrega do seu pedido." },
       { property: "og:url", content: "/rastreio" },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
     links: [{ rel: "canonical", href: "/rastreio" }],
   }),

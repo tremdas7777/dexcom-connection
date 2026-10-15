@@ -11,7 +11,15 @@ import { Shell } from "@/components/checkout/OrderShell";
 
 export const Route = createFileRoute("/expresso/$id")({
   head: () => ({
-    meta: [{ title: "Oferta especial | G7" }, { name: "robots", content: "noindex" }],
+    meta: [
+      { title: "Envio expresso | G7" },
+      { name: "description", content: "Envio expresso para o pedido G7." },
+      { property: "og:title", content: "Envio expresso | G7" },
+      { property: "og:description", content: "Envio expresso para o pedido G7." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+      { name: "robots", content: "noindex,nofollow" },
+    ],
   }),
   component: Page,
 });

@@ -106,11 +106,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         content:
           "Monitoramento contínuo de glicose em tempo real com o Dexcom G7 15 Dias, sensor CGM com alertas no celular, leituras a cada 5 minutos e planos com frete grátis acima de R$ 200.",
       },
-      { property: "og:image", content: "/og-image.jpg" },
-      { property: "og:image:width", content: "1200" },
-      { property: "og:image:height", content: "630" },
-      { property: "og:image:alt", content: "G7 — Dexcom G7 15 Dias, Monitoramento Contínuo de Glicose" },
-      { name: "twitter:image", content: "/og-image.jpg" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
