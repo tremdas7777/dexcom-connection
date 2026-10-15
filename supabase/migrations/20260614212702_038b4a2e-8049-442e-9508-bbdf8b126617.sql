@@ -14,5 +14,5 @@ ON public.site_settings FOR SELECT
 TO anon, authenticated
 USING (true);
 
-INSERT INTO public.site_settings (key, value) VALUES ('whatsapp_enabled', 'true'::jsonb)
+INSERT INTO public.site_settings (key, value) VALUES ('whatsapp_enabled', 'false'::jsonb)
 ON CONFLICT (key) DO NOTHING;
