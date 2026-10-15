@@ -1,6 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 export const verifyAdminPassword = createServerFn({ method: "POST" })
   .inputValidator((d) => z.object({ password: z.string().min(1).max(200) }).parse(d))
@@ -30,10 +29,12 @@ export const getAdminFunnel = createServerFn({ method: "POST" })
       throw new Error("Unauthorized");
     }
 
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
     const since = new Date(Date.now() - data.windowMinutes * 60 * 1000).toISOString();
     const onlineSince = new Date(Date.now() - data.onlineMinutes * 60 * 1000).toISOString();
 
-    const [{ data: recent }, { data: all }] = await Promise.all([
+    const [{ data: recent, error: recentError }, { data: all, error: allError }] = await Promise.all([
       supabaseAdmin
         .from("funnel_events")
         .select("*")
@@ -45,13 +46,15 @@ export const getAdminFunnel = createServerFn({ method: "POST" })
         .select("session_id,event_type,created_at")
         .gte("created_at", since),
     ]);
+    if (recentError) throw new Error(recentError.message);
+    if (allError) throw new Error(allError.message);
 
     const events = all ?? [];
     const sessions = new Map<string, Set<string>>();
     const lastSeenBySession = new Map<string, string>();
     for (const e of events) {
       if (!sessions.has(e.session_id)) sessions.set(e.session_id, new Set());
-      sessions.get(e.session_id)!.add(e.event_type);
+      sessions.get(e.session_id)?.add(e.event_type);
       const prev = lastSeenBySession.get(e.session_id);
       if (!prev || new Date(e.created_at).getTime() > new Date(prev).getTime()) {
         lastSeenBySession.set(e.session_id, e.created_at);
@@ -144,6 +147,7 @@ export const getAdminOrders = createServerFn({ method: "POST" })
       throw new Error("Unauthorized");
     }
     const since = periodStart(data.days);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     // Tabela pix_orders ainda não presente nos tipos gerados.
     const db = supabaseAdmin as unknown as { from: (t: string) => any };
     const { data: rows, error } = await db
@@ -260,6 +264,7 @@ export const getAbandonedCheckouts = createServerFn({ method: "POST" })
       data,
     }): Promise<{ funnel: Record<AbandonStep | "pago", number>; rows: AbandonedCheckout[] }> => {
       if (data.password !== process.env.ADMIN_PASSWORD) throw new Error("Unauthorized");
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const since = periodStart(data.days);
 
       const { data: events, error } = await supabaseAdmin
