@@ -43,6 +43,13 @@
       "when": 1792027729863,
       "tag": "0005_restore_pix_report_result",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792027899320,
+      "tag": "0006_protect_tracking_customer_data",
+      "breakpoints": true
     }
   ]
 }
