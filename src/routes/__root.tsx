@@ -10,7 +10,6 @@ import {
 import { Toaster } from "@/components/ui/sonner";
 import { useAntiCopy } from "@/hooks/useAntiCopy";
 import { useTrackPageView } from "@/hooks/useTrackPageView";
-import { META_PIXEL_ID } from "@/lib/meta-pixel";
 import { useMetaPixel } from "@/hooks/useMetaPixel";
 import { WhatsAppFloat } from "@/components/site/WhatsAppFloat";
 
@@ -116,17 +115,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     scripts: [
       {
         type: "text/javascript",
-        // Meta Pixel (código oficial) inicializado já no <head>, antes da UTMify e do app.
-        // Sem PageView aqui: o app envia o PageView com event_id, igual ao da API de Conversões (sem duplicar).
-        children: `(function(){if(location.pathname.indexOf("/admin")===0)return;!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init','${META_PIXEL_ID}');window.__metaHeadPixel='${META_PIXEL_ID}';})();`,
-      },
-      {
-        type: "text/javascript",
-        children: `!function(w,d,t){w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];ttq.methods=["page","track","identify","instances","debug","on","off","once","ready","alias","group","enableCookie","disableCookie","holdConsent","revokeConsent","grantConsent"],ttq.setAndDefer=function(t,e){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);ttq.instance=function(t){for(var e=ttq._i[t]||[],n=0;n<ttq.methods.length;n++)ttq.setAndDefer(e,ttq.methods[n]);return e},ttq.load=function(e,n){var r="https://analytics.tiktok.com/i18n/pixel/events.js",o=n&&n.partner;ttq._i=ttq._i||{},ttq._i[e]=[],ttq._i[e]._u=r,ttq._t=ttq._t||{},ttq._t[e]=+new Date,ttq._o=ttq._o||{},ttq._o[e]=n||{};n=d.createElement("script"),n.type="text/javascript",n.async=!0,n.src=r+"?sdkid="+e+"&lib="+t;e=d.getElementsByTagName("script")[0];e.parentNode.insertBefore(n,e)};ttq.load('DAJJPT3C77UBCVGL6490');ttq.page()}(window,document,'ttq');`,
-      },
-      {
-        type: "text/javascript",
-        // Pixel UTMify (pixelId 6ad0476518af72642ce6e46c)
+        // Pixel UTMify (pixelId 6ad0476518af72642ce6e46c). Os eventos da Meta saem pela UTMify;
+        // pixel da Meta direto no site só se for cadastrado no /admin.
         children: `(function(){if(document.querySelector('script[src*="cdn.utmify.com.br/scripts/pixel/pixel.js"]'))return;window.pixelId="6ad0476518af72642ce6e46c";var s=document.createElement("script");s.src="https://cdn.utmify.com.br/scripts/pixel/pixel.js";s.async=true;s.defer=true;(document.head||document.documentElement).appendChild(s);})();`,
       },
     ],
@@ -144,15 +134,6 @@ function RootShell({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        <noscript>
-          <img
-            height="1"
-            width="1"
-            style={{ display: "none" }}
-            alt=""
-            src={`https://www.facebook.com/tr?id=${META_PIXEL_ID}&ev=PageView&noscript=1`}
-          />
-        </noscript>
         {children}
         <Scripts />
       </body>

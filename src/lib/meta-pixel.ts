@@ -9,9 +9,6 @@ declare global {
   }
 }
 
-/** Pixel principal, inicializado já no <head> pelo código oficial do Meta (ver __root.tsx). */
-export const META_PIXEL_ID = "2456602311535795";
-
 const inited = new Set<string>();
 const pending: Array<() => void> = [];
 
