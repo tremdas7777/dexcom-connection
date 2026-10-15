@@ -8,6 +8,13 @@
       "when": 1792027627684,
       "tag": "0000_restore_funnel_events",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792027643544,
+      "tag": "0001_restore_site_settings",
+      "breakpoints": true
     }
   ]
 }
