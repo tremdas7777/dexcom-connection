@@ -11,3 +11,5 @@
 
 - Load privileged database clients inside authorized server-function handlers, never at module scope, to prevent server-only dependencies entering the browser bundle.
 - Apply existing SQL migrations chronologically using the managed migration tool; Drizzle records applied migrations and regenerates database types.
+- Keep tracking records private; validated server lookups are read-only and must never fabricate orders or delivery movements.
+- Password-authorized admin refreshes private funnel data through server polling because anonymous realtime has no SELECT access.
