@@ -65,6 +65,51 @@ export type Database = {
         }
         Relationships: []
       }
+      rastreios: {
+        Row: {
+          cep: string | null
+          cidade: string | null
+          codigo_rastreio: string
+          data_atualizacao: string
+          data_criacao: string
+          email: string
+          endereco: string | null
+          estado: string | null
+          id: string
+          nome: string
+          pedido: string
+          status: string
+        }
+        Insert: {
+          cep?: string | null
+          cidade?: string | null
+          codigo_rastreio: string
+          data_atualizacao?: string
+          data_criacao?: string
+          email: string
+          endereco?: string | null
+          estado?: string | null
+          id?: string
+          nome: string
+          pedido: string
+          status?: string
+        }
+        Update: {
+          cep?: string | null
+          cidade?: string | null
+          codigo_rastreio?: string
+          data_atualizacao?: string
+          data_criacao?: string
+          email?: string
+          endereco?: string | null
+          estado?: string | null
+          id?: string
+          nome?: string
+          pedido?: string
+          status?: string
+        }
+        Relationships: []
+      }
       site_settings: {
         Row: {
           key: string
