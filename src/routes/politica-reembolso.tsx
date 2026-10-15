@@ -10,6 +10,8 @@ export const Route = createFileRoute("/politica-reembolso")({
       { property: "og:title", content: "Política de Reembolso" },
       { property: "og:description", content: `Direito de arrependimento e reembolso ${brand.name}.` },
       { property: "og:url", content: "/politica-reembolso" },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
     links: [{ rel: "canonical", href: "/politica-reembolso" }],
   }),

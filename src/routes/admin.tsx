@@ -26,7 +26,15 @@ import {
 
 export const Route = createFileRoute("/admin")({
   head: () => ({
-    meta: [{ title: "Admin · G7" }, { name: "robots", content: "noindex,nofollow" }],
+    meta: [
+      { title: "Admin · G7" },
+      { name: "description", content: "Painel administrativo da loja G7." },
+      { property: "og:title", content: "Admin · G7" },
+      { property: "og:description", content: "Painel administrativo da loja G7." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+      { name: "robots", content: "noindex,nofollow" },
+    ],
   }),
   component: AdminPage,
 });

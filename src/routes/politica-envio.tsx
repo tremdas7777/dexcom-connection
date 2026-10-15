@@ -10,6 +10,8 @@ export const Route = createFileRoute("/politica-envio")({
       { property: "og:title", content: "Política de Envio" },
       { property: "og:description", content: "Envio para todo o Brasil com rastreamento." },
       { property: "og:url", content: "/politica-envio" },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
     links: [{ rel: "canonical", href: "/politica-envio" }],
   }),

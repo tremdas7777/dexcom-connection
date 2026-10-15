@@ -10,6 +10,8 @@ export const Route = createFileRoute("/politica-privacidade")({
       { property: "og:title", content: "Política de Privacidade" },
       { property: "og:description", content: `Proteção de dados ${brand.name}.` },
       { property: "og:url", content: "/politica-privacidade" },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
     links: [{ rel: "canonical", href: "/politica-privacidade" }],
   }),
