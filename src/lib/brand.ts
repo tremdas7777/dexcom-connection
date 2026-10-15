@@ -1,4 +1,4 @@
-/** Marca da loja — G7, revendedor independente de sensores Dexcom G7 */
+/** Marca da loja — G7, revendedor independente de sensores Dexcom G7 (logo: só "G7") */
 export const brand = {
   name: "G7",
   productName: "Dexcom G7 15 Dias",
