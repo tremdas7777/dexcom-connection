@@ -16,7 +16,7 @@ import {
 } from "@/lib/bundles";
 import { brand } from "@/lib/brand";
 import { useState } from "react";
-import { productGallery, productHeroImage, productKitImage } from "@/lib/product-images";
+import { planImages, productGallery, productHeroImage } from "@/lib/product-images";
 import { bundleIdFromSearch, planSearchSchema } from "@/lib/plan-search";
 import { ShieldCheck, Truck, RotateCcw, Droplets, Clock, Smartphone, Bell, Activity, Bluetooth } from "lucide-react";
 import { StoreImage } from "@/components/site/StoreImage";
@@ -55,7 +55,6 @@ const baseFeatures = [
   { Icon: Droplets, label: "À prova d'água (IP28) · banho, natação e exercícios" },
 ] as const;
 
-const gallery = productGallery;
 
 function Page() {
   const search = Route.useSearch();
@@ -64,6 +63,8 @@ function Page() {
   const [selected, setSelected] = useState<BundleId>(initialId);
   const [activeImg, setActiveImg] = useState(0);
   const bundle = getBundle(selected);
+  // A primeira foto da galeria é sempre a do plano escolhido.
+  const gallery = [planImages[bundle.id], ...productGallery.slice(1)];
   useEffect(() => {
     metaTrack("ViewContent", { value: bundle.price, contentName: bundle.name });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -75,6 +76,7 @@ function Page() {
 
   const onSelect = (id: BundleId) => {
     setSelected(id);
+    setActiveImg(0);
     navigate({
       search: (previous) => ({ ...previous, plano: id }),
       replace: true,
@@ -91,7 +93,7 @@ function Page() {
           {/* Gallery */}
           <div className="lg:col-span-7 lg:sticky lg:top-[calc(var(--site-chrome-h,5.5rem)+0.75rem)]">
             <StoreImage
-              key={activeImg}
+              key={`${bundle.id}-${activeImg}`}
               src={active.src}
               alt={active.alt}
               variant="product-hero"
@@ -246,8 +248,8 @@ function Page() {
         <div className="container-edge grid lg:grid-cols-12 gap-12 items-center">
           <div className="lg:col-span-6">
             <StoreImage
-              src={productKitImage}
-              alt="Conteúdo do Dexcom G7 — sensor com aplicador, adesivo extra e guia"
+              src={planImages[bundle.id].src}
+              alt={planImages[bundle.id].alt}
               variant="section-content"
               bg="#ffffff"
               loading="lazy"
