@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
-import logo from "@/assets/g7-logo.png";
+import { useLogoSrc } from "@/components/site/StoreLogo";
 import { brand } from "@/lib/brand";
 
 const nav = [
@@ -13,6 +13,7 @@ const nav = [
 ];
 
 export function Header() {
+  const logo = useLogoSrc();
   const [open, setOpen] = useState(false);
 
   return (

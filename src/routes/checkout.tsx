@@ -3,7 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMutation } from "@tanstack/react-query";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { CreditCard, Loader2, Lock } from "lucide-react";
-import logo from "@/assets/g7-logo.png";
+import { useLogoSrc } from "@/components/site/StoreLogo";
 import { getBundle, isFreeShippingEligible, FREE_SHIPPING_MIN } from "@/lib/bundles";
 import { bundleIdFromSearch, planSearchSchema } from "@/lib/plan-search";
 import {
@@ -128,6 +128,7 @@ type Addr = {
 };
 
 function Page() {
+  const logo = useLogoSrc();
   const navigate = useNavigate();
   const bundle = getBundle(bundleIdFromSearch(Route.useSearch()));
   useEffect(() => {
@@ -789,7 +790,7 @@ function Page() {
   return (
     <div className="ck flex min-h-screen flex-col text-foreground">
       <header className="flex justify-center py-6 md:py-10">
-        <img src={logo} alt="G7" className="h-10 w-auto md:h-12" />
+        <img src={logo} alt="G7" className="h-10 w-auto max-w-[15rem] object-contain md:h-12 md:max-w-[18rem]" />
       </header>
       <SummaryMobile bundle={bundle} frete={freteValue} discount={discount} bumps={bumps} />
       <main className="mx-auto grid w-full max-w-[1160px] gap-4 px-3 pb-24 pt-2 md:px-4 lg:grid-cols-3 lg:gap-4">

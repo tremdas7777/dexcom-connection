@@ -12,6 +12,7 @@ import { useAntiCopy } from "@/hooks/useAntiCopy";
 import { useTrackPageView } from "@/hooks/useTrackPageView";
 import { useMetaPixel } from "@/hooks/useMetaPixel";
 import { WhatsAppFloat } from "@/components/site/WhatsAppFloat";
+import { getLogoMeta } from "@/lib/logo.functions";
 
 import appCss from "../styles.css?url";
 
@@ -121,6 +122,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
     ],
   }),
+  // Logo enviado no /admin: só a versão e o tamanho (a imagem vem de /api/public/logo).
+  // Sem banco ou sem logo, a loja usa o logo padrão.
+  loader: async () => ({ logo: await getLogoMeta().catch(() => null) }),
+  staleTime: 5 * 60_000,
   shellComponent: RootShell,
   component: RootComponent,
   notFoundComponent: NotFoundComponent,

@@ -12,7 +12,7 @@ import {
   Smartphone,
   Truck,
 } from "lucide-react";
-import logo from "@/assets/g7-logo.png";
+import { useLogoSrc } from "@/components/site/StoreLogo";
 import { brand } from "@/lib/brand";
 import { FREE_SHIPPING_LABEL } from "@/lib/bundles";
 import { getSiteSettings } from "@/lib/site-settings.functions";
@@ -85,6 +85,7 @@ function FooterColumn({
 }
 
 export function Footer() {
+  const logo = useLogoSrc();
   const year = new Date().getFullYear();
   const fetchSettings = useServerFn(getSiteSettings);
   const { data: settings } = useQuery({

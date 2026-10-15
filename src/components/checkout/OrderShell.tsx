@@ -1,13 +1,14 @@
 import type { ReactNode } from "react";
-import logo from "@/assets/g7-logo.png";
+import { useLogoSrc } from "@/components/site/StoreLogo";
 import { CheckoutFooter } from "./parts";
 
 /** Layout das páginas pós-checkout (pedido, upsell, obrigado). */
 export function Shell({ children }: { children: ReactNode }) {
+  const logo = useLogoSrc();
   return (
     <div className="ck flex min-h-screen flex-col bg-white text-foreground">
       <header className="flex justify-center py-6 md:py-8">
-        <img src={logo} alt="G7" className="h-10 w-auto md:h-12" />
+        <img src={logo} alt="G7" className="h-10 w-auto max-w-[15rem] object-contain md:h-12 md:max-w-[18rem]" />
       </header>
       <main className="flex-1 pt-4">{children}</main>
       <CheckoutFooter />
