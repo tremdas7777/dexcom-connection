@@ -10,6 +10,7 @@ import { PixGatewayCard } from "@/components/admin/PixGatewayCard";
 import { MetaPixelCard } from "@/components/admin/MetaPixelCard";
 import { LogoCard } from "@/components/admin/LogoCard";
 import { GatewayNameCard } from "@/components/admin/GatewayNameCard";
+import { PushcutCard } from "@/components/admin/PushcutCard";
 import { OrdersTab } from "@/components/admin/OrdersTab";
 import { AbandonedTab } from "@/components/admin/AbandonedTab";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -305,6 +306,7 @@ function AdminPage() {
               <GatewayNameCard password={password} />
               <HypercashCard password={password} />
               <UtmifyCard password={password} />
+              <PushcutCard password={password} />
               <MetaPixelCard password={password} />
             </section>
 
