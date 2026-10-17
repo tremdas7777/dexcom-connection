@@ -29,7 +29,8 @@ const variantStyles: Record<
     radius: "",
   },
   "product-hero": {
-    frame: "aspect-[3/2] w-full",
+    /* Fotos da galeria são quadradas (1200×1200) — legíveis no celular */
+    frame: "aspect-square w-full",
     padding: "p-0",
     contain: true,
     radius: "rounded-2xl",
@@ -49,7 +50,7 @@ const variantStyles: Record<
     radius: "",
   },
   "section-content": {
-    frame: "aspect-video w-full md:aspect-[3/2]",
+    frame: "aspect-square w-full",
     padding: "p-0",
     radius: "rounded-2xl",
   },

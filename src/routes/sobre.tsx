@@ -42,10 +42,10 @@ function Page() {
       <section className="border-t border-[rgba(13,13,13,0.1)]">
         <div className="container-edge py-16">
           <StoreImage
-            srcMobile={homeImages.lifestyleRunning.mobile}
-            srcDesktop={homeImages.lifestyleRunning.desktop}
-            alt="Pessoa usando o Dexcom G7 no dia a dia"
-            variant="section-banner"
+            srcMobile={homeImages.bannerWide.mobile}
+            srcDesktop={homeImages.bannerWide.desktop}
+            alt="Dexcom G7 — glicose em tempo real no celular"
+            variant="banner"
             bg={brand.colors.surfaceTint}
             loading="lazy"
           />
