@@ -116,9 +116,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     scripts: [
       {
         type: "text/javascript",
-        // Pixel UTMify (pixelId 6ad0476518af72642ce6e46c). Os eventos da Meta saem pela UTMify;
+        // Pixel UTMify (pixelId 6ad2e91c5b410252850b8b8c). Os eventos da Meta saem pela UTMify;
         // pixel da Meta direto no site só se for cadastrado no /admin.
-        children: `(function(){if(document.querySelector('script[src*="cdn.utmify.com.br/scripts/pixel/pixel.js"]'))return;window.pixelId="6ad0476518af72642ce6e46c";var s=document.createElement("script");s.src="https://cdn.utmify.com.br/scripts/pixel/pixel.js";s.async=true;s.defer=true;(document.head||document.documentElement).appendChild(s);})();`,
+        children: `(function(){if(document.querySelector('script[src*="cdn.utmify.com.br/scripts/pixel/pixel.js"]'))return;window.pixelId="6ad2e91c5b410252850b8b8c";var s=document.createElement("script");s.src="https://cdn.utmify.com.br/scripts/pixel/pixel.js";s.async=true;s.defer=true;(document.head||document.documentElement).appendChild(s);})();`,
       },
     ],
   }),
