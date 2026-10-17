@@ -93,17 +93,17 @@ def header(eyebrow, title_html, sub=None):
 
 # ---------- Fotos dos planos ----------
 LAYOUTS = {
-    # n: (largura da caixa, [(left, top)], posição do conjunto)
-    2: (600, [(40, 0), (340, 170)]),
-    4: (470, [(20, 0), (440, 0), (130, 230), (560, 230)]),
-    6: (350, [(0, 20), (310, 20), (620, 20), (110, 230), (420, 230), (730, 230)]),
+    # n: (largura da caixa, [(left, top)] dentro da área das caixas)
+    2: (540, [(40, 40), (330, 175)]),
+    4: (440, [(20, 0), (440, 0), (130, 220), (550, 220)]),
+    6: (330, [(0, 20), (310, 20), (620, 20), (110, 230), (420, 230), (730, 230)]),
 }
 
 
 def plan(n, months, eyebrow):
     bw, pos = LAYOUTS[n]
     boxes = "".join(
-        f'<img src="{BOX}" style="position:absolute;left:{x}px;top:{y}px;width:{bw}px;z-index:{i}">'
+        f'<img src="{BOX}" style="position:absolute;left:{x}px;top:{y}px;width:{bw}px;z-index:{i};filter:drop-shadow(0 28px 26px rgba(0,0,0,.16))">'
         for i, (x, y) in enumerate(pos)
     )
     mes = "mês" if months == 1 else "meses"
