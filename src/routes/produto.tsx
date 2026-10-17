@@ -130,7 +130,7 @@ function Page() {
           {/* Buy box */}
           <div className="lg:col-span-5">
             <span className="mb-6 block text-3xl font-extrabold uppercase leading-none tracking-[0.12em] text-[var(--primary)] md:text-4xl">
-              {brand.productName}
+              {brand.productShort}
             </span>
             <h1 className="font-display text-4xl md:text-5xl lg:text-6xl leading-[0.95] tracking-tight text-balance">
               Sensor de <span className="italic">glicose contínuo.</span>
