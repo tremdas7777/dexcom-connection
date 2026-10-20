@@ -82,6 +82,7 @@ const adminPwd = () => {
     return undefined;
   }
 };
+import { cpfOk } from "@/lib/cpf";
 const emailOk = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 const maskCard = (v: string) =>
   digits(v)
@@ -208,14 +209,17 @@ function Page() {
   }, [cardEnabled, pay]);
 
   // Busca de endereço pelo CEP (ViaCEP, API pública)
+  const [cepNotFound, setCepNotFound] = useState(false);
   useEffect(() => {
     const c = digits(addr.cep);
+    setCepNotFound(false);
     if (c.length !== 8) return;
     let alive = true;
     fetch(`https://viacep.com.br/ws/${c}/json/`)
       .then((r) => r.json())
       .then((j) => {
-        if (!alive || j.erro) return;
+        if (!alive) return;
+        if (j.erro) return setCepNotFound(true);
         setAddr((a) => ({
           ...a,
           rua: a.rua || j.logradouro,
@@ -262,8 +266,21 @@ function Page() {
   const idValid =
     id.name.trim().split(" ").length >= 2 &&
     emailOk(id.email) &&
-    digits(id.cpf).length === 11 &&
+    cpfOk(id.cpf) &&
     digits(id.phone).length >= 10;
+  // Mostra ao cliente o que falta, em vez de só deixar o botão apagado.
+  const idMissing = [
+    id.name.trim().split(/\s+/).length < 2 && "nome e sobrenome",
+    !emailOk(id.email) && "e-mail válido",
+    !cpfOk(id.cpf) && "CPF válido",
+    digits(id.phone).length < 10 && "celular com DDD",
+  ].filter(Boolean) as string[];
+  const addrMissing = [
+    digits(addr.cep).length !== 8 && "CEP",
+    !addr.rua && "endereço",
+    !addr.numero && "número",
+    !addr.bairro && "bairro",
+  ].filter(Boolean) as string[];
   const addrValid = digits(addr.cep).length === 8 && addr.rua && addr.numero && addr.bairro;
 
   // Por partes para a RastroCode/cartão; só vai se o CEP trouxe cidade/UF (nunca trava o Pix).
@@ -449,9 +466,14 @@ function Page() {
             inputMode="numeric"
             required
             value={id.cpf}
-            ok={digits(id.cpf).length === 11}
+            ok={cpfOk(id.cpf)}
             onChange={(e) => setId({ ...id, cpf: maskCpf(e.target.value) })}
           />
+          {digits(id.cpf).length === 11 && !cpfOk(id.cpf) && (
+            <p role="alert" className="-mt-2 text-[12px] text-destructive">
+              CPF inválido. Confira os números.
+            </p>
+          )}
           <Field
             label="Celular/Whatsapp"
             wrap="sm:max-w-[240px]"
@@ -465,6 +487,11 @@ function Page() {
           <GreenButton type="submit" disabled={!idValid}>
             Ir Para Entrega
           </GreenButton>
+          {!idValid && (id.name || id.email || id.cpf || id.phone) && (
+            <p className="text-center text-[12px] text-muted-foreground">
+              Falta preencher: {idMissing.join(", ")}
+            </p>
+          )}
         </form>
       </Card>
     ) : (
@@ -491,7 +518,12 @@ function Page() {
               ok={digits(addr.cep).length === 8}
               onChange={(e) => setAddr({ ...addr, cep: maskCep(e.target.value) })}
             />
-            {addr.uf && (
+            {cepNotFound && (
+              <span role="alert" className="pb-3.5 text-xs text-destructive">
+                CEP não encontrado
+              </span>
+            )}
+            {addr.uf && !cepNotFound && (
               <span className="pb-3.5 text-xs">
                 {addr.uf}/{addr.cidade}
               </span>
@@ -562,6 +594,11 @@ function Page() {
           <GreenButton type="submit" disabled={!addrValid}>
             Ir Para Pagamento
           </GreenButton>
+          {!addrValid && (
+            <p className="text-center text-[12px] text-muted-foreground">
+              Falta preencher: {addrMissing.join(", ")}
+            </p>
+          )}
         </form>
       </Card>
     ) : step === 3 ? (
@@ -654,7 +691,7 @@ function Page() {
                 </p>
                 {mutation.isError && (
                   <p role="alert" className="px-4 pb-3 text-sm text-destructive">
-                    Não foi possível gerar o Pix agora. Confira seus dados e tente novamente.
+                    Não foi possível gerar o Pix agora. Aguarde alguns segundos e toque em Finalizar Compra de novo.
                   </p>
                 )}
                 <GreenButton
