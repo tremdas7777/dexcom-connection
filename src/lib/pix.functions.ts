@@ -12,7 +12,7 @@ import {
   findUpsellOf,
 } from "@/lib/pix-orders.server";
 import { createCardTransaction, CARD_ORDER_PREFIX, getHypercashKeys } from "@/lib/hypercash.server";
-import { createPix, XPAY_ORDER_PREFIX } from "@/lib/pix-gateway.server";
+import { createPix, IRONPAY_ORDER_PREFIX, XPAY_ORDER_PREFIX } from "@/lib/pix-gateway.server";
 import { getGatewayProductName } from "@/lib/gateway-name.server";
 import { isPaidStatus } from "@/lib/pix-status";
 import { UPSELL_PRODUCTS, upsellSelection } from "@/lib/upsell";
@@ -154,6 +154,8 @@ export const createPixCharge = createServerFn({ method: "POST" })
       ua,
     };
     if (charge.id.startsWith(XPAY_ORDER_PREFIX)) await saveOrderStrict(orderData);
+    else if (charge.id.startsWith(IRONPAY_ORDER_PREFIX))
+      await saveOrderStrict(orderData, "IronPay");
     else await saveOrder(orderData);
     // Pix gerado → UTMify como pendente (não é conversão; só "paid" conta como venda).
     try {
@@ -507,6 +509,8 @@ export const createUpsellCharge = createServerFn({ method: "POST" })
       fbc: parent.fbc,
     };
     if (charge.id.startsWith(XPAY_ORDER_PREFIX)) await saveOrderStrict(orderData);
+    else if (charge.id.startsWith(IRONPAY_ORDER_PREFIX))
+      await saveOrderStrict(orderData, "IronPay");
     else await saveOrder(orderData);
     // Pix gerado → UTMify como pendente (não é conversão; só "paid" conta como venda).
     try {
@@ -545,7 +549,18 @@ export const getPixStatus = createServerFn({ method: "GET" })
   )
   .handler(async ({ data }): Promise<{ status: string; paid: boolean }> => {
     const { status, amount } = await fetchGatewayStatus(data.id);
-    const paid = isPaidStatus(status);
+    let paid = isPaidStatus(status);
+    if (paid && data.id.startsWith(IRONPAY_ORDER_PREFIX)) {
+      const order = await getOrder(data.id);
+      if (!order || amount !== order.amount_cents) {
+        console.error("IronPay paid amount mismatch", {
+          orderId: data.id,
+          expectedCents: order?.amount_cents ?? null,
+          receivedCents: amount,
+        });
+        paid = false;
+      }
+    }
     // Só pagamento confirmado pelo gateway (servidor) vira conversão — reportado uma única vez.
     if (paid) {
       const h = getRequest()?.headers;

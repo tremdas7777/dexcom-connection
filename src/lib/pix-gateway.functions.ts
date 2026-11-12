@@ -28,6 +28,15 @@ import {
   saveXPayWebhookSecret,
   testXPayKey,
 } from "./xpay.server";
+import {
+  deleteIronPayApiToken,
+  deleteIronPayProductOffer,
+  getIronPayApiTokenSource,
+  getIronPayProductOfferSource,
+  saveIronPayApiToken,
+  saveIronPayProductOffer,
+  testIronPayApiToken,
+} from "./ironpay.server";
 
 const pw = z.object({ password: z.string().min(1).max(200) });
 
@@ -45,14 +54,17 @@ export const getPixGatewayStatus = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => pw.parse(d))
   .handler(async ({ data }) => {
     assertAdmin(data.password);
-    const [state, pixgate, umbrella, sagacepay, xpay, xpayWebhook] = await Promise.all([
-      getPixGatewayState(),
-      getPixgateKeySource(),
-      getUmbrellaKeySource(),
-      getSagacePayKeySource(),
-      getXPayKeySource(),
-      getXPayWebhookSecretSource(),
-    ]);
+    const [state, pixgate, umbrella, sagacepay, xpay, xpayWebhook, ironpay, ironpayConfig] =
+      await Promise.all([
+        getPixGatewayState(),
+        getPixgateKeySource(),
+        getUmbrellaKeySource(),
+        getSagacePayKeySource(),
+        getXPayKeySource(),
+        getXPayWebhookSecretSource(),
+        getIronPayApiTokenSource(),
+        getIronPayProductOfferSource(),
+      ]);
     return {
       ...state,
       keys: {
@@ -60,8 +72,10 @@ export const getPixGatewayStatus = createServerFn({ method: "POST" })
         umbrella: { key: umbrella.key ? mask(umbrella.key) : null, source: umbrella.source },
         sagacepay: { key: sagacepay.key ? mask(sagacepay.key) : null, source: sagacepay.source },
         xpay: { key: xpay.key ? mask(xpay.key) : null, source: xpay.source },
+        ironpay: { key: ironpay.key ? mask(ironpay.key) : null, source: ironpay.source },
       },
       webhook: xpayWebhook,
+      ironpayConfig,
     };
   });
 
@@ -184,5 +198,52 @@ export const deleteXPayWebhookSecretFn = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     assertAdmin(data.password);
     await deleteXPayWebhookSecret();
+    return { ok: true };
+  });
+
+export const saveIronPayApiTokenFn = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => pw.extend({ key: z.string().trim().min(10).max(1000) }).parse(d))
+  .handler(async ({ data }) => {
+    assertAdmin(data.password);
+    await saveIronPayApiToken(data.key);
+    return { ok: true };
+  });
+
+export const deleteIronPayApiTokenFn = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => pw.parse(d))
+  .handler(async ({ data }) => {
+    assertAdmin(data.password);
+    await deleteIronPayApiToken();
+    return { ok: true };
+  });
+
+/** Teste de leitura IronPay; não cria nem modifica transações. */
+export const testIronPayFn = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => pw.parse(d))
+  .handler(async ({ data }) => {
+    assertAdmin(data.password);
+    return testIronPayApiToken();
+  });
+
+export const saveIronPayProductOfferFn = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) =>
+    pw
+      .extend({
+        offerHash: z.string().trim().min(1).max(200),
+        productHash: z.string().trim().min(1).max(200),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data }) => {
+    assertAdmin(data.password);
+    await saveIronPayProductOffer(data.offerHash, data.productHash);
+    return { ok: true };
+  });
+
+export const deleteIronPayProductOfferFn = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => pw.parse(d))
+  .handler(async ({ data }) => {
+    assertAdmin(data.password);
+    await deleteIronPayProductOffer();
     return { ok: true };
   });

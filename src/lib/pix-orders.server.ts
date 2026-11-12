@@ -85,8 +85,11 @@ export async function saveOrder(o: NewOrder): Promise<void> {
   }
 }
 
-/** XPay: não responder sucesso ao checkout sem confirmar que o pedido ficou guardado. */
-export async function saveOrderStrict(o: NewOrder): Promise<void> {
+/** Não responder sucesso sem confirmar que o pedido ficou guardado no Supabase. */
+export async function saveOrderStrict(
+  o: NewOrder,
+  gateway: "XPay" | "IronPay" = "XPay",
+): Promise<void> {
   try {
     const { error } = await upsertOrder(o);
     if (error) {
@@ -98,7 +101,9 @@ export async function saveOrderStrict(o: NewOrder): Promise<void> {
       console.error("saveOrderStrict failed", e instanceof Error ? e.name : "unknown");
     }
     throw new Error(
-      "XPay: a cobrança pode ter sido criada, mas não foi possível registrar o pedido. Não inicie outra compra; tente novamente com os mesmos dados nesta página.",
+      gateway === "XPay"
+        ? "XPay: a cobrança pode ter sido criada, mas não foi possível registrar o pedido. Não inicie outra compra; tente novamente com os mesmos dados nesta página."
+        : "IronPay: a cobrança pode ter sido criada, mas não foi possível registrar o pedido. Verifique o painel IronPay antes de tentar novamente.",
     );
   }
 }

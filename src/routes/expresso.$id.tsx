@@ -176,7 +176,9 @@ function Page() {
             </p>
           ) : (
             <p role="alert" className="mt-4 text-center text-sm text-destructive">
-              {mutation.error instanceof Error && mutation.error.message.startsWith("XPay:")
+              {mutation.error instanceof Error &&
+              (mutation.error.message.startsWith("XPay:") ||
+                mutation.error.message.startsWith("IronPay:"))
                 ? mutation.error.message
                 : "Não foi possível gerar o Pix agora. Tente novamente em alguns segundos."}
             </p>

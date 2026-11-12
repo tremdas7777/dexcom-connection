@@ -22,17 +22,31 @@ import {
   testUmbrellaFn,
   testXPayFn,
 } from "@/lib/pix-gateway.functions";
+import {
+  deleteIronPayApiTokenFn,
+  deleteIronPayProductOfferFn as deleteIronPayConfigFn,
+  saveIronPayApiTokenFn,
+  saveIronPayProductOfferFn,
+  testIronPayFn,
+} from "@/lib/pix-gateway.functions";
 
-type Gateway = "pixgate" | "umbrella" | "sagacepay" | "xpay";
-const GATEWAYS = ["pixgate", "umbrella", "sagacepay", "xpay"] as const;
+type Gateway = "pixgate" | "umbrella" | "sagacepay" | "xpay" | "ironpay";
+const GATEWAYS = ["pixgate", "umbrella", "sagacepay", "xpay", "ironpay"] as const;
 type KeyInfo = { key: string | null; source: "admin" | "secret" | null };
 type WebhookInfo = { configured: boolean; source: "admin" | "secret" | null };
+type IronPayConfigInfo = {
+  offerHash: string | null;
+  productHash: string | null;
+  offerSource: "admin" | "secret" | null;
+  productSource: "admin" | "secret" | null;
+};
 type Status = {
   selected: Gateway;
   active: Gateway;
   configured: Record<Gateway, boolean>;
   keys: Record<Gateway, KeyInfo>;
   webhook: WebhookInfo;
+  ironpayConfig: IronPayConfigInfo;
 };
 
 const LABEL: Record<Gateway, string> = {
@@ -40,12 +54,14 @@ const LABEL: Record<Gateway, string> = {
   umbrella: "Umbrella",
   sagacepay: "SagacePay",
   xpay: "XPay",
+  ironpay: "IronPay",
 };
 const SECRET: Record<Gateway, string> = {
   pixgate: "PIXGATE_API_KEY",
   umbrella: "UMBRELLA_API_KEY",
   sagacepay: "SAGACEPAY_API_KEY",
   xpay: "XPAY_API_KEY",
+  ironpay: "IRONPAY_API_TOKEN",
 };
 
 /** Escolha do gateway do Pix e gestão das credenciais. */
@@ -66,11 +82,17 @@ export function PixGatewayCard({ password }: { password: string }) {
   const testXpay = useServerFn(testXPayFn);
   const saveXpayWebhookFn = useServerFn(saveXPayWebhookSecretFn);
   const deleteXpayWebhookFn = useServerFn(deleteXPayWebhookSecretFn);
+  const saveIronPayToken = useServerFn(saveIronPayApiTokenFn);
+  const deleteIronPayToken = useServerFn(deleteIronPayApiTokenFn);
+  const testIronPay = useServerFn(testIronPayFn);
+  const saveIronPayConfig = useServerFn(saveIronPayProductOfferFn);
+  const deleteIronPayConfig = useServerFn(deleteIronPayConfigFn);
   const keyFns = {
     pixgate: { save: savePixgateFn, remove: deletePixgateFn, test: testPixgate },
     umbrella: { save: saveUmbrellaFn, remove: deleteUmbrellaFn, test: testUmbrella },
     sagacepay: { save: saveSagaceFn, remove: deleteSagaceFn, test: testSagace },
     xpay: { save: saveXpayFn, remove: deleteXpayFn, test: testXpay },
+    ironpay: { save: saveIronPayToken, remove: deleteIronPayToken, test: testIronPay },
   };
 
   const [status, setStatus] = useState<Status | null>(null);
@@ -122,6 +144,18 @@ export function PixGatewayCard({ password }: { password: string }) {
       return `Chave da ${LABEL[gateway]} apagada do painel.`;
     });
 
+  const saveIronPaySettings = (offerHash: string, productHash: string) =>
+    run("save-ironpay-config", async () => {
+      await saveIronPayConfig({ data: { password, offerHash, productHash } });
+      return "Hashes de oferta e produto IronPay salvos.";
+    });
+
+  const deleteIronPaySettings = () =>
+    run("delete-ironpay-config", async () => {
+      await deleteIronPayConfig({ data: { password } });
+      return "Hashes de oferta e produto IronPay apagados do painel.";
+    });
+
   const saveWebhookSecret = (secret: string) =>
     run("save-xpay-webhook", async () => {
       await saveXpayWebhookFn({ data: { password, secret } });
@@ -162,7 +196,7 @@ export function PixGatewayCard({ password }: { password: string }) {
         </span>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
         {GATEWAYS.map((g) => (
           <Button
             key={g}
@@ -175,7 +209,9 @@ export function PixGatewayCard({ password }: { password: string }) {
             {status && !status.configured[g]
               ? g === "xpay"
                 ? ` (${status.keys.xpay.key ? "sem webhook" : "sem chave"})`
-                : " (sem chave)"
+                : g === "ironpay"
+                  ? ` (${status.keys.ironpay.key ? "sem oferta/produto" : "sem token"})`
+                  : " (sem chave)"
               : ""}
           </Button>
         ))}
@@ -205,6 +241,14 @@ export function PixGatewayCard({ password }: { password: string }) {
               busy={busy}
               onSave={saveWebhookSecret}
               onDelete={deleteWebhookSecret}
+            />
+          )}
+          {g === "ironpay" && status && (
+            <IronPayConfigSection
+              info={status.ironpayConfig}
+              busy={busy}
+              onSave={saveIronPaySettings}
+              onDelete={deleteIronPaySettings}
             />
           )}
         </Fragment>
@@ -349,6 +393,78 @@ function XPayWebhookSection({
           {busy === "delete-xpay-webhook" ? "Apagando…" : "Apagar segredo salvo"}
         </Button>
       </div>
+    </div>
+  );
+}
+
+function IronPayConfigSection({
+  info,
+  busy,
+  onSave,
+  onDelete,
+}: {
+  info: IronPayConfigInfo;
+  busy: string | null;
+  onSave: (offerHash: string, productHash: string) => Promise<boolean>;
+  onDelete: () => Promise<boolean>;
+}) {
+  const [offerHash, setOfferHash] = useState("");
+  const [productHash, setProductHash] = useState("");
+  const configured = !!info.offerHash && !!info.productHash;
+
+  return (
+    <div className="flex flex-col gap-2 border-t pt-4">
+      <div className="text-sm font-medium">Oferta e produto IronPay</div>
+      <p className="text-xs text-muted-foreground">
+        A API exige os dois hashes em cada transação. Copie-os do painel IronPay; use uma oferta e
+        produto compatíveis com o valor calculado pelo checkout.
+      </p>
+      <p className="text-xs text-muted-foreground">
+        Oferta: {info.offerHash ? `${info.offerHash} (${info.offerSource})` : "não configurada"} ·
+        Produto:{" "}
+        {info.productHash ? `${info.productHash} (${info.productSource})` : "não configurado"}
+      </p>
+      <Input
+        type="text"
+        autoComplete="off"
+        aria-label="Hash da oferta IronPay"
+        placeholder="Hash da oferta IronPay"
+        value={offerHash}
+        onChange={(e) => setOfferHash(e.target.value)}
+      />
+      <Input
+        type="text"
+        autoComplete="off"
+        aria-label="Hash do produto IronPay"
+        placeholder="Hash do produto IronPay"
+        value={productHash}
+        onChange={(e) => setProductHash(e.target.value)}
+      />
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          size="sm"
+          disabled={!offerHash.trim() || !productHash.trim() || !!busy}
+          onClick={() =>
+            onSave(offerHash.trim(), productHash.trim()).then((ok) => {
+              if (ok) {
+                setOfferHash("");
+                setProductHash("");
+              }
+            })
+          }
+        >
+          {busy === "save-ironpay-config" ? "Salvando…" : "Salvar hashes IronPay"}
+        </Button>
+        <Button size="sm" variant="destructive" disabled={!configured || !!busy} onClick={onDelete}>
+          {busy === "delete-ironpay-config" ? "Apagando…" : "Apagar hashes do painel"}
+        </Button>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        O checkout envia o postback automaticamente para{" "}
+        <code>https://www.dexcomg7.store/api/public/pix-webhook?gw=ip</code>. O postback apenas
+        dispara uma consulta autenticada de status; o corpo recebido não é tratado como prova de
+        pagamento.
+      </p>
     </div>
   );
 }

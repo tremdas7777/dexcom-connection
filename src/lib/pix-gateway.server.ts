@@ -10,6 +10,13 @@ import {
 } from "@/lib/umbrella.server";
 import { getSagacePayKey, sagaceCashin, sagaceStatus } from "@/lib/sagacepay.server";
 import {
+  createIronPayPix,
+  getIronPaySettings,
+  ironPayStatus,
+  isIronPayOrderId,
+  IRONPAY_ORDER_PREFIX,
+} from "@/lib/ironpay.server";
+import {
   createXPayPix,
   getXPayKey,
   getXPayWebhookSecret,
@@ -18,13 +25,14 @@ import {
   xPayStatus,
 } from "@/lib/xpay.server";
 
-export const PIX_GATEWAYS = ["pixgate", "umbrella", "sagacepay", "xpay"] as const;
+export const PIX_GATEWAYS = ["pixgate", "umbrella", "sagacepay", "xpay", "ironpay"] as const;
 export type PixGateway = (typeof PIX_GATEWAYS)[number];
 export const PIX_GATEWAY_LABEL: Record<PixGateway, string> = {
   umbrella: "Umbrella",
   pixgate: "PixGate",
   sagacepay: "SagacePay",
   xpay: "XPay",
+  ironpay: "IronPay",
 };
 
 /** Pedidos Pix da Umbrella são guardados com este prefixo (os da PixGate ficam sem prefixo). */
@@ -35,6 +43,8 @@ export const SAGACEPAY_ORDER_PREFIX = "sg_";
 export const isSagacePayOrderId = (id: string) => id.startsWith(SAGACEPAY_ORDER_PREFIX);
 /** Pedidos Pix da XPay são guardados com este prefixo. */
 export { XPAY_ORDER_PREFIX };
+/** Pedidos Pix da IronPay são guardados com este prefixo. */
+export { IRONPAY_ORDER_PREFIX };
 
 /** O Pix da SagacePay expira em 30 minutos (mesmo prazo mostrado no checkout). */
 const PIX_EXPIRES_IN_SECONDS = 30 * 60;
@@ -63,18 +73,20 @@ async function savedChoice(): Promise<PixGateway | null> {
 
 /** Quais gateways estão prontos para uso (chaves do painel ou secrets do servidor). */
 async function configured(): Promise<Record<PixGateway, boolean>> {
-  const [umbrella, pixgate, sagacepay, xpayKey, xpayWebhookSecret] = await Promise.all([
+  const [umbrella, pixgate, sagacepay, xpayKey, xpayWebhookSecret, ironpay] = await Promise.all([
     getUmbrellaKey().catch(() => null),
     getPixgateKey().catch(() => null),
     getSagacePayKey().catch(() => null),
     getXPayKey().catch(() => null),
     getXPayWebhookSecret().catch(() => null),
+    getIronPaySettings().catch(() => ({ apiToken: null, offerHash: null, productHash: null })),
   ]);
   return {
     umbrella: !!umbrella,
     pixgate: !!pixgate,
     sagacepay: !!sagacepay,
     xpay: !!xpayKey && !!xpayWebhookSecret,
+    ironpay: !!ironpay.apiToken && !!ironpay.offerHash && !!ironpay.productHash,
   };
 }
 
@@ -97,6 +109,11 @@ export async function getPixGatewayState(): Promise<{
 export async function savePixGateway(gateway: PixGateway): Promise<void> {
   const keys = await configured();
   if (!keys[gateway]) {
+    if (gateway === "ironpay") {
+      throw new Error(
+        "Cadastre o token API, o hash da oferta e o hash do produto IronPay antes de ativar.",
+      );
+    }
     if (gateway === "xpay") {
       throw new Error("Cadastre a chave API e o segredo do webhook da XPay antes de ativá-la.");
     }
@@ -156,6 +173,15 @@ export async function createPix(o: {
     });
     return { ...tx, id: `${XPAY_ORDER_PREFIX}${tx.id}` };
   }
+  if (active === "ironpay") {
+    const tx = await createIronPayPix({
+      amount: o.amount,
+      customer: o.customer,
+      address: o.address,
+      description: o.description,
+    });
+    return { ...tx, id: `${IRONPAY_ORDER_PREFIX}${tx.id}` };
+  }
   return pixgateCashin({ ...o, postback: webhook });
 }
 
@@ -167,6 +193,7 @@ export async function fetchPixStatus(id: string): Promise<{ status: string; amou
   }
   if (isSagacePayOrderId(id)) return sagaceStatus(id.slice(SAGACEPAY_ORDER_PREFIX.length));
   if (isXPayOrderId(id)) return xPayStatus(id.slice(XPAY_ORDER_PREFIX.length));
+  if (isIronPayOrderId(id)) return ironPayStatus(id.slice(IRONPAY_ORDER_PREFIX.length));
   return pixgateStatus(id);
 }
 

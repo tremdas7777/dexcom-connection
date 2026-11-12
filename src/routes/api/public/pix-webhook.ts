@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-// Notificações da PixGate, Umbrella, SagacePay, XPay e HyperCash.
+// Notificações da PixGate, Umbrella, SagacePay, XPay, IronPay e HyperCash.
 // O corpo do webhook nunca é suficiente para marcar venda como paga: consultamos o gateway autenticado.
 export const Route = createFileRoute("/api/public/pix-webhook")({
   server: {
@@ -15,6 +15,48 @@ export const Route = createFileRoute("/api/public/pix-webhook")({
           body = JSON.parse(rawBody);
         } catch {
           body = null;
+        }
+
+        if (gw === "ip") {
+          const { IRONPAY_ORDER_PREFIX, verifyIronPayWebhookToken } =
+            await import("@/lib/ironpay.server");
+          if (!(await verifyIronPayWebhookToken(url.searchParams.get("token")))) {
+            return Response.json({ ok: false }, { status: 401 });
+          }
+          const rawHash =
+            body?.transaction_hash ??
+            body?.data?.transaction_hash ??
+            body?.hash ??
+            body?.data?.hash;
+          const hash = rawHash == null ? "" : String(rawHash);
+          if (!/^[\w-]{1,64}$/.test(hash)) return Response.json({ ok: true });
+          if (body?.payment_method && String(body.payment_method).toLowerCase() !== "pix") {
+            return Response.json({ ok: true });
+          }
+          const id = `${IRONPAY_ORDER_PREFIX}${hash}`;
+          try {
+            const { fetchGatewayStatus, getOrder, reportPaidOnce, isPaidStatus } =
+              await import("@/lib/pix-orders.server");
+            const order = await getOrder(id);
+            if (!order) return Response.json({ ok: true });
+            const { status, amount } = await fetchGatewayStatus(id);
+            if (!isPaidStatus(status)) return Response.json({ ok: true });
+            if (amount !== order.amount_cents) {
+              console.error("ironpay webhook amount mismatch", {
+                orderId: id,
+                expectedCents: order.amount_cents,
+                receivedCents: amount,
+              });
+              return Response.json({ ok: true });
+            }
+            await reportPaidOnce(id, amount);
+            return Response.json({ ok: true });
+          } catch (e) {
+            console.error("ironpay-webhook failed", {
+              errorName: e instanceof Error ? e.name : "unknown",
+            });
+            return Response.json({ ok: false }, { status: 503 });
+          }
         }
 
         if (gw === "xp") {

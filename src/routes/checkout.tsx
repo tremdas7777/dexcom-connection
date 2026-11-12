@@ -369,9 +369,9 @@ function Page() {
 
   const pixErrorMessage = (error: unknown) => {
     const message = error instanceof Error ? error.message.trim() : "";
-    if (message.startsWith("XPay:")) return message.slice(0, 240);
+    if (message.startsWith("XPay:") || message.startsWith("IronPay:")) return message.slice(0, 240);
     if (/failed to fetch|networkerror|load failed/i.test(message)) {
-      return "Falha de conexão com o servidor da loja. A tentativa pode não ter chegado à XPay; confira o painel antes de tentar novamente.";
+      return "Falha de conexão com o servidor da loja. A tentativa pode ter chegado ao gateway; confira o painel de pagamentos antes de tentar novamente.";
     }
     if (/zoderror|invalid input|expected .* received|cpf inválido/i.test(message)) {
       return "Algum dado do checkout não passou na validação. Confira nome, e-mail, CPF e celular.";
