@@ -239,8 +239,14 @@ export async function createXPayPix(o: {
       brCodeKeys:
         brCodeValue && typeof brCodeValue === "object" ? Object.keys(brCodeValue).slice(0, 20) : [],
     });
+    const statusDetail = `HTTP ${res.status}${errorCode ? `, código ${errorCode}` : ""}`;
+    if (res.status >= 500) {
+      throw new Error(
+        `XPay: falha do servidor de pagamentos (${statusDetail}). A resposta não confirma se a cobrança foi criada; confira o painel XPay antes de tentar novamente.`,
+      );
+    }
     throw new Error(
-      `XPay: cobrança recusada (HTTP ${res.status}${errorCode ? `, código ${errorCode}` : ""}). Verifique os dados e o limite da conta.`,
+      `XPay: cobrança recusada (${statusDetail}). Verifique os dados e o limite da conta.`,
     );
   }
   if (!id) {
