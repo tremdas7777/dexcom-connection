@@ -21,7 +21,8 @@ export const Route = createFileRoute("/api/public/pix-webhook")({
             verifyPixBlackWebhookSignature,
           } = await import("@/lib/pixblack.server");
           const secret = await getPixBlackWebhookSecret();
-          if (!secret) return Response.json({ ok: false }, { status: 503 });
+          // Webhook é opcional; sem segredo não processamos callbacks e evitamos retries inúteis.
+          if (!secret) return Response.json({ ok: true, ignored: true });
           if (
             !verifyPixBlackWebhookSignature(
               rawBodyBytes,

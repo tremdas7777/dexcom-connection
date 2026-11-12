@@ -238,7 +238,7 @@ export function PixGatewayCard({ password }: { password: string }) {
                 : g === "ironpay"
                   ? ` (${status.keys.ironpay.key ? "sem oferta/produto" : "sem token"})`
                   : g === "pixblack"
-                    ? ` (${status.keys.pixblack.key ? "sem webhook" : "sem chave"})`
+                    ? " (sem chave)"
                     : " (sem chave)"
               : ""}
           </Button>
@@ -331,7 +331,9 @@ function KeySection({
         </span>
       </div>
       <div className="text-xs text-muted-foreground">
-        A chave salva aqui tem prioridade. Sem ela, vale o secret {SECRET[gateway]} do servidor.
+        {gateway === "pixblack"
+          ? "A chave API é suficiente para ativar Pix Black. O checkout consulta o status da cobrança pela API; webhook é opcional."
+          : `A chave salva aqui tem prioridade. Sem ela, vale o secret ${SECRET[gateway]} do servidor.`}
       </div>
       <Input
         type="password"
@@ -449,17 +451,21 @@ function PixBlackWebhookSection({
   return (
     <div className="flex flex-col gap-2 border-t pt-4">
       <div className="flex items-center justify-between gap-4">
-        <div className="text-sm font-medium">Segredo de assinatura do webhook Pix Black</div>
+        <div className="text-sm font-medium">Webhook Pix Black (opcional)</div>
         <span
-          className={`text-xs whitespace-nowrap ${info.configured ? "text-emerald-600" : "text-destructive"}`}
+          className={`text-xs whitespace-nowrap ${info.configured ? "text-emerald-600" : "text-muted-foreground"}`}
         >
           {info.source === "admin"
             ? "Segredo salvo no painel"
             : info.source === "secret"
               ? "Secret do servidor"
-              : "Não configurado"}
+              : "Opcional — não configurado"}
         </span>
       </div>
+      <p className="text-xs text-muted-foreground">
+        Não precisa cadastrar webhook para gerar nem confirmar Pix: o checkout consulta o status da
+        cobrança na API. Ignore esta seção se quiser usar apenas a chave API.
+      </p>
       <p className="text-xs text-muted-foreground">
         No painel Pix Black, cadastre esta URL para os eventos <code>charge.paid</code> e
         <code> charge.expired</code>:

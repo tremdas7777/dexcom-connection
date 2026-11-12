@@ -19,7 +19,6 @@ import {
 import {
   createPixBlackCharge,
   getPixBlackApiKey,
-  getPixBlackWebhookSecret,
   isPixBlackOrderId,
   pixBlackStatus,
   PIXBLACK_ORDER_PREFIX,
@@ -91,32 +90,23 @@ async function savedChoice(): Promise<PixGateway | null> {
 
 /** Quais gateways estão prontos para uso (chaves do painel ou secrets do servidor). */
 async function configured(): Promise<Record<PixGateway, boolean>> {
-  const [
-    umbrella,
-    pixgate,
-    sagacepay,
-    xpayKey,
-    xpayWebhookSecret,
-    ironpay,
-    pixblackKey,
-    pixblackWebhook,
-  ] = await Promise.all([
-    getUmbrellaKey().catch(() => null),
-    getPixgateKey().catch(() => null),
-    getSagacePayKey().catch(() => null),
-    getXPayKey().catch(() => null),
-    getXPayWebhookSecret().catch(() => null),
-    getIronPaySettings().catch(() => ({ apiToken: null, offerHash: null, productHash: null })),
-    getPixBlackApiKey().catch(() => null),
-    getPixBlackWebhookSecret().catch(() => null),
-  ]);
+  const [umbrella, pixgate, sagacepay, xpayKey, xpayWebhookSecret, ironpay, pixblackKey] =
+    await Promise.all([
+      getUmbrellaKey().catch(() => null),
+      getPixgateKey().catch(() => null),
+      getSagacePayKey().catch(() => null),
+      getXPayKey().catch(() => null),
+      getXPayWebhookSecret().catch(() => null),
+      getIronPaySettings().catch(() => ({ apiToken: null, offerHash: null, productHash: null })),
+      getPixBlackApiKey().catch(() => null),
+    ]);
   return {
     umbrella: !!umbrella,
     pixgate: !!pixgate,
     sagacepay: !!sagacepay,
     xpay: !!xpayKey && !!xpayWebhookSecret,
     ironpay: !!ironpay.apiToken && !!ironpay.offerHash && !!ironpay.productHash,
-    pixblack: !!pixblackKey && !!pixblackWebhook,
+    pixblack: !!pixblackKey,
   };
 }
 
@@ -148,7 +138,7 @@ export async function savePixGateway(gateway: PixGateway): Promise<void> {
       throw new Error("Cadastre a chave API e o segredo do webhook da XPay antes de ativá-la.");
     }
     if (gateway === "pixblack") {
-      throw new Error("Cadastre a chave API e o segredo do webhook Pix Black antes de ativá-la.");
+      throw new Error("Cadastre a chave API da Pix Black antes de ativá-la.");
     }
     throw new Error(`Cadastre a chave da ${PIX_GATEWAY_LABEL[gateway]} antes de ativá-la.`);
   }
