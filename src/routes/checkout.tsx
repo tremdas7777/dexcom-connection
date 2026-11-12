@@ -346,6 +346,25 @@ function Page() {
     },
   });
 
+  const pixErrorMessage = (error: unknown) => {
+    const message = error instanceof Error ? error.message.trim() : "";
+    if (message.startsWith("XPay:")) return message.slice(0, 240);
+    if (/failed to fetch|networkerror|load failed/i.test(message)) {
+      return "Falha de conexão com o servidor da loja. A tentativa pode não ter chegado à XPay; confira o painel antes de tentar novamente.";
+    }
+    if (/zoderror|invalid input|expected .* received|cpf inválido/i.test(message)) {
+      return "Algum dado do checkout não passou na validação. Confira nome, e-mail, CPF e celular.";
+    }
+    if (
+      /^(Frete grátis|Pagamento indisponível|A XPay exige|Não foi possível gerar o Pix)/i.test(
+        message,
+      )
+    ) {
+      return message.slice(0, 240);
+    }
+    return "Falha interna ao gerar o Pix. Confira os logs da Vercel antes de tentar novamente.";
+  };
+
   const cardValid =
     luhnOk(card.number) &&
     card.name.trim().length >= 3 &&
@@ -691,7 +710,7 @@ function Page() {
                 </p>
                 {mutation.isError && (
                   <p role="alert" className="px-4 pb-3 text-sm text-destructive">
-                    Não foi possível gerar o Pix agora. Aguarde alguns segundos e toque em Finalizar Compra de novo.
+                    {pixErrorMessage(mutation.error)}
                   </p>
                 )}
                 <GreenButton
@@ -827,7 +846,11 @@ function Page() {
   return (
     <div className="ck flex min-h-screen flex-col text-foreground">
       <header className="flex justify-center py-6 md:py-10">
-        <img src={logo} alt="G7" className="h-10 w-auto max-w-[15rem] object-contain md:h-12 md:max-w-[18rem]" />
+        <img
+          src={logo}
+          alt="G7"
+          className="h-10 w-auto max-w-[15rem] object-contain md:h-12 md:max-w-[18rem]"
+        />
       </header>
       <SummaryMobile bundle={bundle} frete={freteValue} discount={discount} bumps={bumps} />
       <main className="mx-auto grid w-full max-w-[1160px] gap-4 px-3 pb-24 pt-2 md:px-4 lg:grid-cols-3 lg:gap-4">

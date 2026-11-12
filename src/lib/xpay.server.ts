@@ -197,38 +197,72 @@ export async function createXPayPix(o: {
         ...(o.address.complement ? { line1: o.address.complement } : {}),
       }
     : {};
-  const res = await fetch(`${XPAY_API}/charge/pix`, {
-    method: "POST",
-    headers: { ...(await headers()), "Idempotency-Key": externalId },
-    body: JSON.stringify({
-      amount: o.amount,
-      expiresIn: o.expiresInSeconds ?? 30 * 60,
-      externalId,
-      customer: {
-        taxId: o.customer.cpf,
-        name: o.customer.name,
-        email: o.customer.email,
-        phone: o.customer.phone,
-        ...address,
-      },
-    }),
-  });
+  const requestHeaders = await headers();
+  let res: Response;
+  try {
+    res = await fetch(`${XPAY_API}/charge/pix`, {
+      method: "POST",
+      headers: { ...requestHeaders, "Idempotency-Key": externalId },
+      body: JSON.stringify({
+        amount: o.amount,
+        expiresIn: o.expiresInSeconds ?? 30 * 60,
+        externalId,
+        customer: {
+          taxId: o.customer.cpf,
+          name: o.customer.name,
+          email: o.customer.email,
+          phone: o.customer.phone,
+          ...address,
+        },
+      }),
+    });
+  } catch (e) {
+    console.error("XPay create network error", e instanceof Error ? e.name : "unknown");
+    throw new Error("XPay: falha de conexão ao criar a cobrança (sem resposta da API).");
+  }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- resposta externa sem tipo gerado
   const json = (await res.json().catch(() => null)) as any;
   const charge = json?.data ?? json;
   const id = charge?.id;
   const qrcode = extractBrCode(charge?.brCode, 0, true) ?? "";
-  if (!res.ok || !id || !qrcode) {
-    const brCodeValue = charge?.brCode;
+  const brCodeValue = charge?.brCode;
+  const rawCode = json?.code ?? json?.errorCode ?? json?.error?.code;
+  const errorCode =
+    typeof rawCode === "string" && /^[A-Za-z0-9_.-]{1,60}$/.test(rawCode) ? rawCode : null;
+  if (!res.ok) {
     console.error("XPay create error", {
       status: res.status,
+      errorCode,
       chargeKeys: Object.keys(charge ?? {}).slice(0, 20),
       hasId: !!id,
       brCodeType: Array.isArray(brCodeValue) ? "array" : typeof brCodeValue,
       brCodeKeys:
         brCodeValue && typeof brCodeValue === "object" ? Object.keys(brCodeValue).slice(0, 20) : [],
     });
-    throw new Error("Não foi possível gerar o Pix. Confira seus dados e tente novamente.");
+    throw new Error(
+      `XPay: cobrança recusada (HTTP ${res.status}${errorCode ? `, código ${errorCode}` : ""}). Verifique os dados e o limite da conta.`,
+    );
+  }
+  if (!id) {
+    console.error("XPay create response missing id", {
+      status: res.status,
+      chargeKeys: Object.keys(charge ?? {}).slice(0, 20),
+    });
+    throw new Error(`XPay: resposta HTTP ${res.status} sem identificador de cobrança.`);
+  }
+  if (!qrcode) {
+    const brCodeType = Array.isArray(brCodeValue) ? "array" : typeof brCodeValue;
+    const brCodeKeys =
+      brCodeValue && typeof brCodeValue === "object" ? Object.keys(brCodeValue).slice(0, 20) : [];
+    console.error("XPay create response missing brCode", {
+      status: res.status,
+      hasId: true,
+      brCodeType,
+      brCodeKeys,
+    });
+    throw new Error(
+      `XPay: resposta HTTP ${res.status} sem código Pix legível (brCode ${brCodeType}${brCodeKeys.length ? `; campos: ${brCodeKeys.join(", ")}` : ""}). Se a cobrança ficou pendente, confira no painel antes de tentar novamente.`,
+    );
   }
   return {
     id: String(id),
