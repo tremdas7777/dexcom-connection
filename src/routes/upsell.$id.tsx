@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation } from "@tanstack/react-query";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { CircleCheck, Loader2, ShieldCheck } from "lucide-react";
 import { getBundle } from "@/lib/bundles";
 import { brand } from "@/lib/brand";
@@ -46,6 +46,7 @@ function Page() {
   const cardFn = useServerFn(createCardFollowUpCharge);
   const [usePix, setUsePix] = useState(false);
   const [chosen, setChosen] = useState<UpsellProduct[]>([]);
+  const pixAttempt = useRef<{ fingerprint: string; idempotencyKey: string } | null>(null);
 
   useEffect(() => {
     const s = loadPixSession(id);
@@ -77,12 +78,28 @@ function Page() {
         });
         return { ...r, qrcode: "", method: "card" as const };
       }
+      const fingerprint = JSON.stringify({
+        parentId: id,
+        products: [...sel.products].sort(),
+        amount: Math.round(sel.total * 100),
+      });
+      let attempt = pixAttempt.current;
+      if (!attempt || attempt.fingerprint !== fingerprint) {
+        attempt = { fingerprint, idempotencyKey: crypto.randomUUID() };
+        pixAttempt.current = attempt;
+      }
       const r = await createFn({
-        data: { parentId: id, origin: window.location.origin, products: sel.products },
+        data: {
+          parentId: id,
+          origin: window.location.origin,
+          products: sel.products,
+          idempotencyKey: attempt.idempotencyKey,
+        },
       });
       return { ...r, method: "pix" as const };
     },
     onSuccess: (c) => {
+      pixAttempt.current = null;
       if (!session) return;
       savePixSession({
         method: c.method,
@@ -217,7 +234,9 @@ function Page() {
             </p>
           ) : (
             <p role="alert" className="mt-4 text-center text-sm text-destructive">
-              Não foi possível gerar o Pix agora. Tente novamente em alguns segundos.
+              {mutation.error instanceof Error && mutation.error.message.startsWith("XPay:")
+                ? mutation.error.message
+                : "Não foi possível gerar o Pix agora. Tente novamente em alguns segundos."}
             </p>
           ))}
 

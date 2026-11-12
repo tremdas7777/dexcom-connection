@@ -306,6 +306,7 @@ function Page() {
     endereco: `${addr.rua}, ${addr.numero} ${addr.complemento} - ${addr.bairro}, ${addr.cidade}/${addr.uf} ${addr.cep}`,
     address: structuredAddress(),
   });
+  const pixAttempt = useRef<{ fingerprint: string; idempotencyKey: string } | null>(null);
   const sessionBase = () => ({
     email: id.email,
     name: id.name,
@@ -324,8 +325,28 @@ function Page() {
   });
 
   const mutation = useMutation({
-    mutationFn: () => createFn({ data: orderPayload() }),
+    mutationFn: () => {
+      const payload = orderPayload();
+      const fingerprint = JSON.stringify({
+        name: payload.name.trim(),
+        email: payload.email.trim().toLowerCase(),
+        phone: digits(payload.phone),
+        cpf: digits(payload.cpf),
+        plano: payload.plano,
+        frete: payload.frete,
+        bumps: [...payload.bumps].sort(),
+        address: payload.address ?? null,
+        amount: pixT.total,
+      });
+      let attempt = pixAttempt.current;
+      if (!attempt || attempt.fingerprint !== fingerprint) {
+        attempt = { fingerprint, idempotencyKey: crypto.randomUUID() };
+        pixAttempt.current = attempt;
+      }
+      return createFn({ data: { ...payload, idempotencyKey: attempt.idempotencyKey } });
+    },
     onSuccess: (c) => {
+      pixAttempt.current = null;
       savePixSession({
         ...sessionBase(),
         id: c.id,

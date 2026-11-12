@@ -116,6 +116,7 @@ export type PixCustomer = { name: string; email: string; phone: string; cpf: str
 export async function createPix(o: {
   amount: number;
   customer: PixCustomer;
+  idempotencyKey?: string | undefined;
   address?: UmbrellaAddress | undefined;
   /** Nome genérico enviado ao gateway — sem detalhes do produto real. */
   description: string;
@@ -151,6 +152,7 @@ export async function createPix(o: {
       amount: o.amount,
       customer: o.customer,
       address: o.address,
+      idempotencyKey: o.idempotencyKey,
     });
     return { ...tx, id: `${XPAY_ORDER_PREFIX}${tx.id}` };
   }

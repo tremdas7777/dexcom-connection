@@ -4,6 +4,7 @@ import { getBundle, isFreeShippingEligible, parseBundleId, FREE_SHIPPING_MIN } f
 import { BUMP_IDS, bumpsTotal, getBumps } from "@/lib/order-bump";
 import {
   saveOrder,
+  saveOrderStrict,
   fetchGatewayStatus,
   reportPaidOnce,
   reportPendingToUtmify,
@@ -11,7 +12,7 @@ import {
   findUpsellOf,
 } from "@/lib/pix-orders.server";
 import { createCardTransaction, CARD_ORDER_PREFIX, getHypercashKeys } from "@/lib/hypercash.server";
-import { createPix } from "@/lib/pix-gateway.server";
+import { createPix, XPAY_ORDER_PREFIX } from "@/lib/pix-gateway.server";
 import { getGatewayProductName } from "@/lib/gateway-name.server";
 import { isPaidStatus } from "@/lib/pix-status";
 import { UPSELL_PRODUCTS, upsellSelection } from "@/lib/upsell";
@@ -45,6 +46,7 @@ const customerSchema = z.object({
     .transform((v) => v.replace(/\D/g, ""))
     .refine(isValidCpf, "CPF inválido"),
   origin: z.string().url(),
+  idempotencyKey: z.string().uuid().optional(),
   frete: z.enum(["gratis", "padrao", "express"]).default("padrao"),
   endereco: z.string().max(300).optional(),
   // Endereço por partes (RastroCode). Opcional: clientes antigos não enviam.
@@ -115,11 +117,12 @@ export const createPixCharge = createServerFn({ method: "POST" })
     });
     const amount = totals.total;
     const { ip, ua } = requestMeta();
-    // Gateway escolhido no /admin (Umbrella ou PixGate).
+    // Gateway escolhido no /admin, com preço e valor calculados sempre no servidor.
     const charge = await createPix({
       amount,
       customer: { name: data.name, email: data.email, phone: data.phone, cpf: data.cpf },
       address: data.address,
+      idempotencyKey: data.idempotencyKey,
       // Nome do produto no gateway — definido no /admin.
       description: await getGatewayProductName(),
       origin: data.origin,
@@ -150,9 +153,17 @@ export const createPixCharge = createServerFn({ method: "POST" })
       ip,
       ua,
     };
-    await saveOrder(orderData);
+    if (charge.id.startsWith(XPAY_ORDER_PREFIX)) await saveOrderStrict(orderData);
+    else await saveOrder(orderData);
     // Pix gerado → UTMify como pendente (não é conversão; só "paid" conta como venda).
-    await reportPendingToUtmify(orderData);
+    try {
+      await reportPendingToUtmify(orderData);
+    } catch (e) {
+      console.error("Pix pending report failed", {
+        orderId: charge.id,
+        errorName: e instanceof Error ? e.name : "unknown",
+      });
+    }
     return { id: charge.id, qrcode: charge.qrcode, amount, status: charge.status };
   });
 
@@ -239,7 +250,11 @@ export const createCardCharge = createServerFn({ method: "POST" })
       shippingFee: totals.frete,
       // Mesmo nome do Pix (definido no /admin).
       items: [
-        { title: await getGatewayProductName(), unitPrice: Math.round(bundle.price * 100), quantity: 1 },
+        {
+          title: await getGatewayProductName(),
+          unitPrice: Math.round(bundle.price * 100),
+          quantity: 1,
+        },
         ...chosenBumps(data).map((b) => ({
           title: b.gatewayName,
           unitPrice: Math.round(b.price * 100),
@@ -423,6 +438,7 @@ export const createUpsellCharge = createServerFn({ method: "POST" })
       .object({
         parentId: z.string().regex(/^[\w-]{1,64}$/),
         origin: z.string().url(),
+        idempotencyKey: z.string().uuid().optional(),
         // Ofertas marcadas na tela pós-compra (kit extra, seguro de entrega e envio expresso), numa cobrança só.
         products: z
           .array(z.enum(UPSELL_PRODUCTS))
@@ -461,6 +477,7 @@ export const createUpsellCharge = createServerFn({ method: "POST" })
       amount,
       customer: { name: c.name, email: c.email, phone: c.phone, cpf: c.cpf },
       address: c.address,
+      idempotencyKey: data.idempotencyKey,
       description: await getGatewayProductName(),
       origin: data.origin,
       ip,
@@ -489,9 +506,17 @@ export const createUpsellCharge = createServerFn({ method: "POST" })
       fbp: parent.fbp,
       fbc: parent.fbc,
     };
-    await saveOrder(orderData);
+    if (charge.id.startsWith(XPAY_ORDER_PREFIX)) await saveOrderStrict(orderData);
+    else await saveOrder(orderData);
     // Pix gerado → UTMify como pendente (não é conversão; só "paid" conta como venda).
-    await reportPendingToUtmify(orderData);
+    try {
+      await reportPendingToUtmify(orderData);
+    } catch (e) {
+      console.error("Pix upsell pending report failed", {
+        orderId: charge.id,
+        errorName: e instanceof Error ? e.name : "unknown",
+      });
+    }
     return { id: charge.id, qrcode: charge.qrcode, amount, status: charge.status };
   });
 

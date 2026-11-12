@@ -40,10 +40,11 @@ export type StoredCustomer = {
 async function admin() {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   // Tabela nova ainda não presente nos tipos gerados.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- query builder dinâmico do Supabase
   return supabaseAdmin as unknown as { from: (t: string) => any };
 }
 
-export async function saveOrder(o: {
+type NewOrder = {
   id: string;
   amountCents: number;
   customer: StoredCustomer;
@@ -56,25 +57,49 @@ export async function saveOrder(o: {
   fbc?: string | null;
   /** Momento da criação (ms). O mesmo valor vai para a UTMify no "pendente" e no "pago". */
   createdAt?: number;
-}): Promise<void> {
+};
+
+async function upsertOrder(o: NewOrder) {
+  const db = await admin();
+  return db.from("pix_orders").upsert({
+    id: o.id,
+    ...(o.createdAt ? { created_at: new Date(o.createdAt).toISOString() } : {}),
+    amount_cents: o.amountCents,
+    customer: o.customer,
+    bundle_id: o.bundleId,
+    bundle_name: o.bundleName,
+    utm: o.utm ?? {},
+    ip: o.ip ?? null,
+    ua: o.ua ?? null,
+    fbp: o.fbp ?? null,
+    fbc: o.fbc ?? null,
+  });
+}
+
+export async function saveOrder(o: NewOrder): Promise<void> {
   try {
-    const db = await admin();
-    const { error } = await db.from("pix_orders").upsert({
-      id: o.id,
-      ...(o.createdAt ? { created_at: new Date(o.createdAt).toISOString() } : {}),
-      amount_cents: o.amountCents,
-      customer: o.customer,
-      bundle_id: o.bundleId,
-      bundle_name: o.bundleName,
-      utm: o.utm ?? {},
-      ip: o.ip ?? null,
-      ua: o.ua ?? null,
-      fbp: o.fbp ?? null,
-      fbc: o.fbc ?? null,
-    });
-    if (error) console.error("saveOrder error", error.message);
+    const { error } = await upsertOrder(o);
+    if (error) console.error("saveOrder error", { code: error.code ?? "unknown" });
   } catch (e) {
-    console.error("saveOrder failed", e);
+    console.error("saveOrder failed", e instanceof Error ? e.name : "unknown");
+  }
+}
+
+/** XPay: não responder sucesso ao checkout sem confirmar que o pedido ficou guardado. */
+export async function saveOrderStrict(o: NewOrder): Promise<void> {
+  try {
+    const { error } = await upsertOrder(o);
+    if (error) {
+      console.error("saveOrderStrict error", { code: error.code ?? "unknown" });
+      throw new Error("persist");
+    }
+  } catch (e) {
+    if (!(e instanceof Error && e.message === "persist")) {
+      console.error("saveOrderStrict failed", e instanceof Error ? e.name : "unknown");
+    }
+    throw new Error(
+      "XPay: a cobrança pode ter sido criada, mas não foi possível registrar o pedido. Não inicie outra compra; tente novamente com os mesmos dados nesta página.",
+    );
   }
 }
 
@@ -149,9 +174,7 @@ export async function reportPendingToUtmify(o: {
       document: o.customer.cpf,
       ip: o.ip ?? null,
     },
-    products: [
-      { id: o.bundleId, name: `G7 CGM - ${o.bundleName}`, priceInCents: o.amountCents },
-    ],
+    products: [{ id: o.bundleId, name: `G7 CGM - ${o.bundleName}`, priceInCents: o.amountCents }],
     amountCents: o.amountCents,
     utm: o.utm ?? {},
     paymentMethod: o.customer.method === "card" ? "credit_card" : "pix",

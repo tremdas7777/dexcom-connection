@@ -208,9 +208,12 @@ export async function createXPayPix(o: {
   customer: { name: string; email: string; phone: string; cpf: string };
   address?: XPayAddress | undefined;
   expiresInSeconds?: number | undefined;
+  idempotencyKey?: string | undefined;
 }): Promise<{ id: string; qrcode: string; status: string }> {
-  if (o.amount < 500) throw new Error("A XPay exige cobrança mínima de R$ 5,00.");
-  const externalId = crypto.randomUUID();
+  if (!Number.isSafeInteger(o.amount) || o.amount < 500)
+    throw new Error("A XPay exige cobrança inteira em centavos e mínima de R$ 5,00.");
+  const externalId = o.idempotencyKey ?? crypto.randomUUID();
+  const startedAt = Date.now();
   const address = o.address
     ? {
         postalCode: o.address.zipcode,
@@ -221,6 +224,11 @@ export async function createXPayPix(o: {
       }
     : {};
   const requestHeaders = await headers();
+  console.info("XPay create start", {
+    externalId,
+    amountCents: o.amount,
+    hasAddress: !!o.address,
+  });
   let res: Response;
   try {
     res = await fetch(`${XPAY_API}/charge/pix`, {
@@ -240,11 +248,21 @@ export async function createXPayPix(o: {
       }),
     });
   } catch (e) {
-    console.error("XPay create network error", e instanceof Error ? e.name : "unknown");
+    console.error("XPay create network error", {
+      externalId,
+      durationMs: Date.now() - startedAt,
+      errorName: e instanceof Error ? e.name : "unknown",
+    });
     throw new Error("XPay: falha de conexão ao criar a cobrança (sem resposta da API).");
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- resposta externa sem tipo gerado
-  const json = (await res.json().catch(() => null)) as any;
+  let json: any = null;
+  const rawBody = await res.text().catch(() => "");
+  try {
+    json = rawBody ? JSON.parse(rawBody) : null;
+  } catch {
+    // Não guardar nem expor corpos HTML/textuais de erro do provedor.
+  }
   const charge = json?.data ?? json;
   const id = charge?.id;
   const qrcode = extractBrCode(charge?.brCode, 0, true) ?? "";
@@ -252,9 +270,24 @@ export async function createXPayPix(o: {
   const rawCode = json?.code ?? json?.errorCode ?? json?.error?.code;
   const errorCode =
     typeof rawCode === "string" && /^[A-Za-z0-9_.-]{1,60}$/.test(rawCode) ? rawCode : null;
+  const rawRequestId =
+    res.headers.get("x-request-id") ??
+    res.headers.get("request-id") ??
+    res.headers.get("x-correlation-id") ??
+    null;
+  const requestId =
+    rawRequestId && /^[A-Za-z0-9._:-]{1,80}$/.test(rawRequestId) ? rawRequestId : null;
+  const responseMeta = {
+    externalId,
+    status: res.status,
+    durationMs: Date.now() - startedAt,
+    requestId,
+    contentType: res.headers.get("content-type"),
+    idempotentReplay: res.headers.get("Idempotent-Replayed"),
+  };
   if (!res.ok) {
     console.error("XPay create error", {
-      status: res.status,
+      ...responseMeta,
       errorCode,
       chargeKeys: Object.keys(charge ?? {}).slice(0, 20),
       hasId: !!id,
@@ -263,9 +296,14 @@ export async function createXPayPix(o: {
         brCodeValue && typeof brCodeValue === "object" ? Object.keys(brCodeValue).slice(0, 20) : [],
     });
     const statusDetail = `HTTP ${res.status}${errorCode ? `, código ${errorCode}` : ""}`;
+    if (res.status === 409) {
+      throw new Error(
+        "XPay: conflito de idempotência (HTTP 409). A tentativa já foi enviada com dados diferentes; não inicie outra compra até verificar o painel XPay.",
+      );
+    }
     if (res.status >= 500) {
       throw new Error(
-        `XPay: falha do servidor de pagamentos (${statusDetail}). A resposta não confirma se a cobrança foi criada; confira o painel XPay antes de tentar novamente.`,
+        `XPay: falha do servidor de pagamentos (${statusDetail}). A resposta não confirma se a cobrança foi criada; nesta página a repetição com os mesmos dados reutiliza a mesma chave idempotente. Se o erro persistir, confira o painel XPay antes de iniciar outra compra.`,
       );
     }
     throw new Error(
@@ -274,7 +312,7 @@ export async function createXPayPix(o: {
   }
   if (!id) {
     console.error("XPay create response missing id", {
-      status: res.status,
+      ...responseMeta,
       chargeKeys: Object.keys(charge ?? {}).slice(0, 20),
     });
     throw new Error(`XPay: resposta HTTP ${res.status} sem identificador de cobrança.`);
@@ -284,7 +322,7 @@ export async function createXPayPix(o: {
     const brCodeKeys =
       brCodeValue && typeof brCodeValue === "object" ? Object.keys(brCodeValue).slice(0, 20) : [];
     console.error("XPay create response missing brCode", {
-      status: res.status,
+      ...responseMeta,
       hasId: true,
       brCodeType,
       brCodeKeys,
