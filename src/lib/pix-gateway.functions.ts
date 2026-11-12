@@ -19,6 +19,15 @@ import {
   saveSagacePayKey,
   testSagacePayKey,
 } from "./sagacepay.server";
+import {
+  deleteXPayKey,
+  deleteXPayWebhookSecret,
+  getXPayKeySource,
+  getXPayWebhookSecretSource,
+  saveXPayKey,
+  saveXPayWebhookSecret,
+  testXPayKey,
+} from "./xpay.server";
 
 const pw = z.object({ password: z.string().min(1).max(200) });
 
@@ -31,16 +40,18 @@ function mask(token: string): string {
   return `${token.slice(0, 4)}••••${token.slice(-4)}`;
 }
 
-/** Gateway escolhido, gateway em uso e chaves da PixGate, da Umbrella e da SagacePay (mascaradas). */
+/** Gateway escolhido, gateway em uso e credenciais dos gateways (mascaradas). */
 export const getPixGatewayStatus = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => pw.parse(d))
   .handler(async ({ data }) => {
     assertAdmin(data.password);
-    const [state, pixgate, umbrella, sagacepay] = await Promise.all([
+    const [state, pixgate, umbrella, sagacepay, xpay, xpayWebhook] = await Promise.all([
       getPixGatewayState(),
       getPixgateKeySource(),
       getUmbrellaKeySource(),
       getSagacePayKeySource(),
+      getXPayKeySource(),
+      getXPayWebhookSecretSource(),
     ]);
     return {
       ...state,
@@ -48,7 +59,9 @@ export const getPixGatewayStatus = createServerFn({ method: "POST" })
         pixgate: { key: pixgate.key ? mask(pixgate.key) : null, source: pixgate.source },
         umbrella: { key: umbrella.key ? mask(umbrella.key) : null, source: umbrella.source },
         sagacepay: { key: sagacepay.key ? mask(sagacepay.key) : null, source: sagacepay.source },
+        xpay: { key: xpay.key ? mask(xpay.key) : null, source: xpay.source },
       },
+      webhook: xpayWebhook,
     };
   });
 
@@ -130,4 +143,46 @@ export const testSagacePayFn = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     assertAdmin(data.password);
     return testSagacePayKey();
+  });
+
+export const saveXPayKeyFn = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => pw.extend({ key: z.string().trim().min(10).max(500) }).parse(d))
+  .handler(async ({ data }) => {
+    assertAdmin(data.password);
+    await saveXPayKey(data.key);
+    return { ok: true };
+  });
+
+export const deleteXPayKeyFn = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => pw.parse(d))
+  .handler(async ({ data }) => {
+    assertAdmin(data.password);
+    await deleteXPayKey();
+    return { ok: true };
+  });
+
+/** Consulta somente os limites da conta; não gera cobrança Pix. */
+export const testXPayFn = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => pw.parse(d))
+  .handler(async ({ data }) => {
+    assertAdmin(data.password);
+    return testXPayKey();
+  });
+
+export const saveXPayWebhookSecretFn = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) =>
+    pw.extend({ secret: z.string().trim().min(16).max(500) }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    assertAdmin(data.password);
+    await saveXPayWebhookSecret(data.secret);
+    return { ok: true };
+  });
+
+export const deleteXPayWebhookSecretFn = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => pw.parse(d))
+  .handler(async ({ data }) => {
+    assertAdmin(data.password);
+    await deleteXPayWebhookSecret();
+    return { ok: true };
   });

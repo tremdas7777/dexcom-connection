@@ -1,17 +1,56 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-// Notificação da PixGate, da Umbrella e da SagacePay (Pix) e da HyperCash (cartão). O corpo não é confiável: usamos só o id
-// e sempre confirmamos o status na API autenticada antes de reportar a venda.
+// Notificações da PixGate, Umbrella, SagacePay, XPay e HyperCash.
+// O corpo do webhook nunca é suficiente para marcar venda como paga: consultamos o gateway autenticado.
 export const Route = createFileRoute("/api/public/pix-webhook")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- resposta do gateway/banco sem tipo
-        const body = (await request.json().catch(() => null)) as any;
-        const gw = new URL(request.url).searchParams.get("gw");
-        // Umbrella notifica com ?gw=um e manda o id da transação em "objectId"; o pedido é salvo com prefixo "um_".
+        const url = new URL(request.url);
+        const gw = url.searchParams.get("gw");
+        const rawBody = await request.text();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- payload do gateway externo sem tipo gerado
+        let body: any = null;
+        try {
+          body = JSON.parse(rawBody);
+        } catch {
+          body = null;
+        }
+
+        if (gw === "xp") {
+          const { getXPayWebhookSecret, verifyXPayWebhookSignature, XPAY_ORDER_PREFIX } =
+            await import("@/lib/xpay.server");
+          const secret = await getXPayWebhookSecret();
+          if (!secret) return Response.json({ ok: false }, { status: 503 });
+          if (
+            !verifyXPayWebhookSignature(rawBody, request.headers.get("x-webhook-signature"), secret)
+          ) {
+            return Response.json({ ok: false, error: "invalid signature" }, { status: 401 });
+          }
+          if (!body || body.event !== "charge.paid") return Response.json({ ok: true });
+
+          const rawId = body?.data?.chargeId ?? body?.data?.id;
+          const id = rawId == null ? "" : `${XPAY_ORDER_PREFIX}${String(rawId)}`;
+          if (!/^xp_[\w-]{1,64}$/.test(id)) return Response.json({ ok: true });
+          try {
+            const { fetchGatewayStatus, reportPaidOnce, isPaidStatus } =
+              await import("@/lib/pix-orders.server");
+            const { status, amount } = await fetchGatewayStatus(id);
+            if (isPaidStatus(status)) await reportPaidOnce(id, amount);
+            return Response.json({ ok: true });
+          } catch (e) {
+            console.error(
+              "xpay-webhook failed",
+              id,
+              e instanceof Error ? e.message : "Falha ao confirmar cobrança",
+            );
+            return Response.json({ ok: false }, { status: 503 });
+          }
+        }
+
+        // Umbrella notifica com ?gw=um e usa objectId; o pedido tem prefixo um_.
         const isUmbrella = gw === "um";
-        // SagacePay notifica com ?gw=sg e { event: "sale.paid", data: { id } }; o pedido é salvo com prefixo "sg_".
+        // SagacePay notifica com ?gw=sg e data.id; o pedido tem prefixo sg_.
         const isSagace = gw === "sg";
         const rawId =
           (isUmbrella ? (body?.objectId ?? body?.data?.id ?? body?.id) : undefined) ??
@@ -21,7 +60,7 @@ export const Route = createFileRoute("/api/public/pix-webhook")({
           body?.transaction?.id ??
           body?.body?.transaction?.id ??
           body?.data?.id;
-        // HyperCash (cartão) notifica nesta mesma rota com ?gw=hc; o pedido é salvo com prefixo "hc_".
+        // HyperCash (cartão) usa ?gw=hc; os pedidos têm prefixo hc_.
         const isCard = gw === "hc";
         const prefix = isCard ? "hc_" : isUmbrella ? "um_" : isSagace ? "sg_" : "";
         const id = rawId == null ? "" : `${prefix}${String(rawId)}`;

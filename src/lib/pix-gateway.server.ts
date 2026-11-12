@@ -9,13 +9,22 @@ import {
   type UmbrellaAddress,
 } from "@/lib/umbrella.server";
 import { getSagacePayKey, sagaceCashin, sagaceStatus } from "@/lib/sagacepay.server";
+import {
+  createXPayPix,
+  getXPayKey,
+  getXPayWebhookSecret,
+  isXPayOrderId,
+  XPAY_ORDER_PREFIX,
+  xPayStatus,
+} from "@/lib/xpay.server";
 
-export const PIX_GATEWAYS = ["pixgate", "umbrella", "sagacepay"] as const;
+export const PIX_GATEWAYS = ["pixgate", "umbrella", "sagacepay", "xpay"] as const;
 export type PixGateway = (typeof PIX_GATEWAYS)[number];
 export const PIX_GATEWAY_LABEL: Record<PixGateway, string> = {
   umbrella: "Umbrella",
   pixgate: "PixGate",
   sagacepay: "SagacePay",
+  xpay: "XPay",
 };
 
 /** Pedidos Pix da Umbrella são guardados com este prefixo (os da PixGate ficam sem prefixo). */
@@ -24,6 +33,8 @@ export const isUmbrellaOrderId = (id: string) => id.startsWith(UMBRELLA_ORDER_PR
 /** Pedidos Pix da SagacePay são guardados com este prefixo. */
 export const SAGACEPAY_ORDER_PREFIX = "sg_";
 export const isSagacePayOrderId = (id: string) => id.startsWith(SAGACEPAY_ORDER_PREFIX);
+/** Pedidos Pix da XPay são guardados com este prefixo. */
+export { XPAY_ORDER_PREFIX };
 
 /** O Pix da SagacePay expira em 30 minutos (mesmo prazo mostrado no checkout). */
 const PIX_EXPIRES_IN_SECONDS = 30 * 60;
@@ -40,7 +51,9 @@ const isGateway = (v: unknown): v is PixGateway => PIX_GATEWAYS.includes(v as Pi
 
 /** Gateway escolhido no /admin (null = nunca escolhido). Sem cache: a troca vale na hora. */
 async function savedChoice(): Promise<PixGateway | null> {
-  const { data } = await (await db())
+  const { data } = await (
+    await db()
+  )
     .from("private_settings")
     .select("value")
     .eq("key", SETTING)
@@ -48,14 +61,21 @@ async function savedChoice(): Promise<PixGateway | null> {
   return isGateway(data?.value) ? data.value : null;
 }
 
-/** Quais gateways têm chave cadastrada (painel ou secret do Lovable). */
+/** Quais gateways estão prontos para uso (chaves do painel ou secrets do servidor). */
 async function configured(): Promise<Record<PixGateway, boolean>> {
-  const [umbrella, pixgate, sagacepay] = await Promise.all([
+  const [umbrella, pixgate, sagacepay, xpayKey, xpayWebhookSecret] = await Promise.all([
     getUmbrellaKey().catch(() => null),
     getPixgateKey().catch(() => null),
     getSagacePayKey().catch(() => null),
+    getXPayKey().catch(() => null),
+    getXPayWebhookSecret().catch(() => null),
   ]);
-  return { umbrella: !!umbrella, pixgate: !!pixgate, sagacepay: !!sagacepay };
+  return {
+    umbrella: !!umbrella,
+    pixgate: !!pixgate,
+    sagacepay: !!sagacepay,
+    xpay: !!xpayKey && !!xpayWebhookSecret,
+  };
 }
 
 /**
@@ -77,9 +97,14 @@ export async function getPixGatewayState(): Promise<{
 export async function savePixGateway(gateway: PixGateway): Promise<void> {
   const keys = await configured();
   if (!keys[gateway]) {
+    if (gateway === "xpay") {
+      throw new Error("Cadastre a chave API e o segredo do webhook da XPay antes de ativá-la.");
+    }
     throw new Error(`Cadastre a chave da ${PIX_GATEWAY_LABEL[gateway]} antes de ativá-la.`);
   }
-  const { error } = await (await db())
+  const { error } = await (
+    await db()
+  )
     .from("private_settings")
     .upsert({ key: SETTING, value: gateway, updated_at: new Date().toISOString() });
   if (error) throw new Error(error.message);
@@ -121,6 +146,14 @@ export async function createPix(o: {
     });
     return { ...tx, id: `${SAGACEPAY_ORDER_PREFIX}${tx.id}` };
   }
+  if (active === "xpay") {
+    const tx = await createXPayPix({
+      amount: o.amount,
+      customer: o.customer,
+      address: o.address,
+    });
+    return { ...tx, id: `${XPAY_ORDER_PREFIX}${tx.id}` };
+  }
   return pixgateCashin({ ...o, postback: webhook });
 }
 
@@ -131,6 +164,7 @@ export async function fetchPixStatus(id: string): Promise<{ status: string; amou
     return { status: tx?.status ?? "waiting_payment", amount: tx?.amount ?? 0 };
   }
   if (isSagacePayOrderId(id)) return sagaceStatus(id.slice(SAGACEPAY_ORDER_PREFIX.length));
+  if (isXPayOrderId(id)) return xPayStatus(id.slice(XPAY_ORDER_PREFIX.length));
   return pixgateStatus(id);
 }
 

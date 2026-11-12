@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { ArrowLeftRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -8,38 +8,47 @@ import {
   deletePixgateKeyFn,
   deleteSagacePayKeyFn,
   deleteUmbrellaKeyFn,
+  deleteXPayKeyFn,
+  deleteXPayWebhookSecretFn,
   getPixGatewayStatus,
   savePixgateKeyFn,
   saveSagacePayKeyFn,
   saveUmbrellaKeyFn,
+  saveXPayKeyFn,
+  saveXPayWebhookSecretFn,
   setPixGatewayFn,
   testPixgateFn,
   testSagacePayFn,
   testUmbrellaFn,
+  testXPayFn,
 } from "@/lib/pix-gateway.functions";
 
-type Gateway = "pixgate" | "umbrella" | "sagacepay";
-const GATEWAYS = ["pixgate", "umbrella", "sagacepay"] as const;
+type Gateway = "pixgate" | "umbrella" | "sagacepay" | "xpay";
+const GATEWAYS = ["pixgate", "umbrella", "sagacepay", "xpay"] as const;
 type KeyInfo = { key: string | null; source: "admin" | "secret" | null };
+type WebhookInfo = { configured: boolean; source: "admin" | "secret" | null };
 type Status = {
   selected: Gateway;
   active: Gateway;
   configured: Record<Gateway, boolean>;
   keys: Record<Gateway, KeyInfo>;
+  webhook: WebhookInfo;
 };
 
 const LABEL: Record<Gateway, string> = {
   pixgate: "PixGate",
   umbrella: "Umbrella",
   sagacepay: "SagacePay",
+  xpay: "XPay",
 };
 const SECRET: Record<Gateway, string> = {
   pixgate: "PIXGATE_API_KEY",
   umbrella: "UMBRELLA_API_KEY",
   sagacepay: "SAGACEPAY_API_KEY",
+  xpay: "XPAY_API_KEY",
 };
 
-/** Escolha do gateway do Pix (PixGate, Umbrella ou SagacePay) + chave de cada um. */
+/** Escolha do gateway do Pix e gestão das credenciais. */
 export function PixGatewayCard({ password }: { password: string }) {
   const statusFn = useServerFn(getPixGatewayStatus);
   const setFn = useServerFn(setPixGatewayFn);
@@ -52,10 +61,16 @@ export function PixGatewayCard({ password }: { password: string }) {
   const saveSagaceFn = useServerFn(saveSagacePayKeyFn);
   const deleteSagaceFn = useServerFn(deleteSagacePayKeyFn);
   const testSagace = useServerFn(testSagacePayFn);
+  const saveXpayFn = useServerFn(saveXPayKeyFn);
+  const deleteXpayFn = useServerFn(deleteXPayKeyFn);
+  const testXpay = useServerFn(testXPayFn);
+  const saveXpayWebhookFn = useServerFn(saveXPayWebhookSecretFn);
+  const deleteXpayWebhookFn = useServerFn(deleteXPayWebhookSecretFn);
   const keyFns = {
     pixgate: { save: savePixgateFn, remove: deletePixgateFn, test: testPixgate },
     umbrella: { save: saveUmbrellaFn, remove: deleteUmbrellaFn, test: testUmbrella },
     sagacepay: { save: saveSagaceFn, remove: deleteSagaceFn, test: testSagace },
+    xpay: { save: saveXpayFn, remove: deleteXpayFn, test: testXpay },
   };
 
   const [status, setStatus] = useState<Status | null>(null);
@@ -107,6 +122,18 @@ export function PixGatewayCard({ password }: { password: string }) {
       return `Chave da ${LABEL[gateway]} apagada do painel.`;
     });
 
+  const saveWebhookSecret = (secret: string) =>
+    run("save-xpay-webhook", async () => {
+      await saveXpayWebhookFn({ data: { password, secret } });
+      return "Segredo do webhook XPay salvo no armazenamento privado.";
+    });
+
+  const deleteWebhookSecret = () =>
+    run("delete-xpay-webhook", async () => {
+      await deleteXpayWebhookFn({ data: { password } });
+      return "Segredo do webhook XPay apagado do painel.";
+    });
+
   /** Consulta o gateway com a chave em uso, sem gerar Pix nem pedido. */
   const testKey = (gateway: Gateway) =>
     run(`test-${gateway}`, async () => {
@@ -134,7 +161,7 @@ export function PixGatewayCard({ password }: { password: string }) {
         </span>
       </div>
 
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
         {GATEWAYS.map((g) => (
           <Button
             key={g}
@@ -144,7 +171,11 @@ export function PixGatewayCard({ password }: { password: string }) {
             onClick={() => choose(g)}
           >
             {busy === `set-${g}` ? "Salvando…" : LABEL[g]}
-            {status && !status.configured[g] ? " (sem chave)" : ""}
+            {status && !status.configured[g]
+              ? g === "xpay"
+                ? ` (${status.keys.xpay.key ? "sem webhook" : "sem chave"})`
+                : " (sem chave)"
+              : ""}
           </Button>
         ))}
       </div>
@@ -157,16 +188,25 @@ export function PixGatewayCard({ password }: { password: string }) {
       )}
 
       {GATEWAYS.map((g) => (
-        <KeySection
-          key={g}
-          gateway={g}
-          info={status?.keys[g] ?? null}
-          loading={status === null}
-          busy={busy}
-          onSave={(key) => saveKey(g, key)}
-          onDelete={() => deleteKey(g)}
-          onTest={() => testKey(g)}
-        />
+        <Fragment key={g}>
+          <KeySection
+            gateway={g}
+            info={status?.keys[g] ?? null}
+            loading={status === null}
+            busy={busy}
+            onSave={(key) => saveKey(g, key)}
+            onDelete={() => deleteKey(g)}
+            onTest={() => testKey(g)}
+          />
+          {g === "xpay" && status && (
+            <XPayWebhookSection
+              info={status.webhook}
+              busy={busy}
+              onSave={saveWebhookSecret}
+              onDelete={deleteWebhookSecret}
+            />
+          )}
+        </Fragment>
       ))}
       {msg && <p className="text-xs">{msg}</p>}
     </Card>
@@ -196,7 +236,7 @@ function KeySection({
     : info?.source === "admin"
       ? "Chave do painel"
       : info?.source === "secret"
-        ? "Secret do Lovable"
+        ? "Secret do servidor"
         : "Sem chave";
 
   return (
@@ -210,7 +250,7 @@ function KeySection({
         </span>
       </div>
       <div className="text-xs text-muted-foreground">
-        A chave salva aqui tem prioridade. Sem ela, vale o secret {SECRET[gateway]} do Lovable.
+        A chave salva aqui tem prioridade. Sem ela, vale o secret {SECRET[gateway]} do servidor.
       </div>
       <Input
         type="password"
@@ -238,6 +278,74 @@ function KeySection({
           onClick={onDelete}
         >
           {busy === `delete-${gateway}` ? "Apagando…" : "Apagar chave do painel"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function XPayWebhookSection({
+  info,
+  busy,
+  onSave,
+  onDelete,
+}: {
+  info: WebhookInfo;
+  busy: string | null;
+  onSave: (secret: string) => Promise<boolean>;
+  onDelete: () => Promise<boolean>;
+}) {
+  const [secret, setSecret] = useState("");
+
+  return (
+    <div className="flex flex-col gap-2 border-t pt-4">
+      <div className="flex items-center justify-between gap-4">
+        <div className="text-sm font-medium">Segredo de assinatura do webhook XPay</div>
+        <span
+          className={`text-xs whitespace-nowrap ${info.configured ? "text-emerald-600" : "text-destructive"}`}
+        >
+          {info.source === "admin"
+            ? "Segredo salvo no painel"
+            : info.source === "secret"
+              ? "Secret do servidor"
+              : "Não configurado"}
+        </span>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        No painel XPay, crie um webhook para o evento <code>charge.paid</code> e use esta URL:
+      </p>
+      <code className="break-all rounded bg-muted px-2 py-1 text-xs">
+        https://www.dexcomg7.store/api/public/pix-webhook?gw=xp
+      </code>
+      <p className="text-xs text-muted-foreground">
+        A XPay mostra o segredo uma única vez. Cole-o aqui; a aplicação valida a assinatura e
+        consulta novamente a cobrança na API antes de confirmar o pedido.
+      </p>
+      <Input
+        type="password"
+        autoComplete="off"
+        aria-label="Segredo de assinatura do webhook XPay"
+        placeholder={
+          info.configured ? "Segredo salvo (deixe vazio para manter)" : "Segredo do webhook XPay"
+        }
+        value={secret}
+        onChange={(e) => setSecret(e.target.value)}
+      />
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          size="sm"
+          disabled={secret.trim().length < 16 || !!busy}
+          onClick={() => onSave(secret.trim()).then((ok) => ok && setSecret(""))}
+        >
+          {busy === "save-xpay-webhook" ? "Salvando…" : "Salvar segredo do webhook"}
+        </Button>
+        <Button
+          size="sm"
+          variant="destructive"
+          disabled={info.source !== "admin" || !!busy}
+          onClick={onDelete}
+        >
+          {busy === "delete-xpay-webhook" ? "Apagando…" : "Apagar segredo salvo"}
         </Button>
       </div>
     </div>
