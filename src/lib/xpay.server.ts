@@ -138,6 +138,47 @@ export type XPayAddress = {
   zipcode: string;
 };
 
+/** A OpenAPI da XPay descreve brCode como objeto, embora o exemplo e outros schemas usem string. */
+function extractBrCode(value: unknown, depth = 0, preferString = false): string | null {
+  if (typeof value === "string") {
+    const text = value.trim();
+    return text && (preferString || text.startsWith("000201")) ? text : null;
+  }
+  if (!value || typeof value !== "object" || depth >= 5) return null;
+
+  const entries: [string, unknown][] = Array.isArray(value)
+    ? value.map((item, index) => [String(index), item])
+    : Object.entries(value as Record<string, unknown>);
+  const preferredKeys = [
+    "brCode",
+    "br_code",
+    "copyPaste",
+    "copyPasteCode",
+    "copy_paste",
+    "pixCode",
+    "payload",
+    "emv",
+    "code",
+    "text",
+    "value",
+    "qrCode",
+    "qr_code",
+  ];
+
+  for (const key of preferredKeys) {
+    const entry = entries.find(([name]) => name === key);
+    if (entry) {
+      const result = extractBrCode(entry[1], depth + 1, true);
+      if (result) return result;
+    }
+  }
+  for (const [, nested] of entries) {
+    const result = extractBrCode(nested, depth + 1);
+    if (result) return result;
+  }
+  return null;
+}
+
 /** Cria Pix avulso. A XPay recebe o valor em centavos e só aceita cobranças a partir de R$ 5,00. */
 export async function createXPayPix(o: {
   amount: number;
@@ -176,9 +217,17 @@ export async function createXPayPix(o: {
   const json = (await res.json().catch(() => null)) as any;
   const charge = json?.data ?? json;
   const id = charge?.id;
-  const qrcode = typeof charge?.brCode === "string" ? charge.brCode.trim() : "";
+  const qrcode = extractBrCode(charge?.brCode, 0, true) ?? "";
   if (!res.ok || !id || !qrcode) {
-    console.error("XPay create error", res.status, Object.keys(charge ?? {}).join(","));
+    const brCodeValue = charge?.brCode;
+    console.error("XPay create error", {
+      status: res.status,
+      chargeKeys: Object.keys(charge ?? {}).slice(0, 20),
+      hasId: !!id,
+      brCodeType: Array.isArray(brCodeValue) ? "array" : typeof brCodeValue,
+      brCodeKeys:
+        brCodeValue && typeof brCodeValue === "object" ? Object.keys(brCodeValue).slice(0, 20) : [],
+    });
     throw new Error("Não foi possível gerar o Pix. Confira seus dados e tente novamente.");
   }
   return {
