@@ -12,7 +12,12 @@ import {
   findUpsellOf,
 } from "@/lib/pix-orders.server";
 import { createCardTransaction, CARD_ORDER_PREFIX, getHypercashKeys } from "@/lib/hypercash.server";
-import { createPix, IRONPAY_ORDER_PREFIX, XPAY_ORDER_PREFIX } from "@/lib/pix-gateway.server";
+import {
+  createPix,
+  IRONPAY_ORDER_PREFIX,
+  PIXBLACK_ORDER_PREFIX,
+  XPAY_ORDER_PREFIX,
+} from "@/lib/pix-gateway.server";
 import { getGatewayProductName } from "@/lib/gateway-name.server";
 import { isPaidStatus } from "@/lib/pix-status";
 import { UPSELL_PRODUCTS, upsellSelection } from "@/lib/upsell";
@@ -156,6 +161,8 @@ export const createPixCharge = createServerFn({ method: "POST" })
     if (charge.id.startsWith(XPAY_ORDER_PREFIX)) await saveOrderStrict(orderData);
     else if (charge.id.startsWith(IRONPAY_ORDER_PREFIX))
       await saveOrderStrict(orderData, "IronPay");
+    else if (charge.id.startsWith(PIXBLACK_ORDER_PREFIX))
+      await saveOrderStrict(orderData, "Pix Black");
     else await saveOrder(orderData);
     // Pix gerado → UTMify como pendente (não é conversão; só "paid" conta como venda).
     try {
@@ -511,6 +518,8 @@ export const createUpsellCharge = createServerFn({ method: "POST" })
     if (charge.id.startsWith(XPAY_ORDER_PREFIX)) await saveOrderStrict(orderData);
     else if (charge.id.startsWith(IRONPAY_ORDER_PREFIX))
       await saveOrderStrict(orderData, "IronPay");
+    else if (charge.id.startsWith(PIXBLACK_ORDER_PREFIX))
+      await saveOrderStrict(orderData, "Pix Black");
     else await saveOrder(orderData);
     // Pix gerado → UTMify como pendente (não é conversão; só "paid" conta como venda).
     try {
@@ -550,10 +559,13 @@ export const getPixStatus = createServerFn({ method: "GET" })
   .handler(async ({ data }): Promise<{ status: string; paid: boolean }> => {
     const { status, amount } = await fetchGatewayStatus(data.id);
     let paid = isPaidStatus(status);
-    if (paid && data.id.startsWith(IRONPAY_ORDER_PREFIX)) {
+    if (
+      paid &&
+      (data.id.startsWith(IRONPAY_ORDER_PREFIX) || data.id.startsWith(PIXBLACK_ORDER_PREFIX))
+    ) {
       const order = await getOrder(data.id);
       if (!order || amount !== order.amount_cents) {
-        console.error("IronPay paid amount mismatch", {
+        console.error("gateway paid amount mismatch", {
           orderId: data.id,
           expectedCents: order?.amount_cents ?? null,
           receivedCents: amount,

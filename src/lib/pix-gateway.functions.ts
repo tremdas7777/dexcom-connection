@@ -37,6 +37,15 @@ import {
   saveIronPayProductOffer,
   testIronPayApiToken,
 } from "./ironpay.server";
+import {
+  deletePixBlackApiKey,
+  deletePixBlackWebhookSecret,
+  getPixBlackApiKeySource,
+  getPixBlackWebhookSecretSource,
+  savePixBlackApiKey,
+  savePixBlackWebhookSecret,
+  testPixBlackApiKey,
+} from "./pixblack.server";
 
 const pw = z.object({ password: z.string().min(1).max(200) });
 
@@ -54,17 +63,29 @@ export const getPixGatewayStatus = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => pw.parse(d))
   .handler(async ({ data }) => {
     assertAdmin(data.password);
-    const [state, pixgate, umbrella, sagacepay, xpay, xpayWebhook, ironpay, ironpayConfig] =
-      await Promise.all([
-        getPixGatewayState(),
-        getPixgateKeySource(),
-        getUmbrellaKeySource(),
-        getSagacePayKeySource(),
-        getXPayKeySource(),
-        getXPayWebhookSecretSource(),
-        getIronPayApiTokenSource(),
-        getIronPayProductOfferSource(),
-      ]);
+    const [
+      state,
+      pixgate,
+      umbrella,
+      sagacepay,
+      xpay,
+      xpayWebhook,
+      ironpay,
+      ironpayConfig,
+      pixblack,
+      pixblackWebhook,
+    ] = await Promise.all([
+      getPixGatewayState(),
+      getPixgateKeySource(),
+      getUmbrellaKeySource(),
+      getSagacePayKeySource(),
+      getXPayKeySource(),
+      getXPayWebhookSecretSource(),
+      getIronPayApiTokenSource(),
+      getIronPayProductOfferSource(),
+      getPixBlackApiKeySource(),
+      getPixBlackWebhookSecretSource(),
+    ]);
     return {
       ...state,
       keys: {
@@ -73,9 +94,11 @@ export const getPixGatewayStatus = createServerFn({ method: "POST" })
         sagacepay: { key: sagacepay.key ? mask(sagacepay.key) : null, source: sagacepay.source },
         xpay: { key: xpay.key ? mask(xpay.key) : null, source: xpay.source },
         ironpay: { key: ironpay.key ? mask(ironpay.key) : null, source: ironpay.source },
+        pixblack: { key: pixblack.key ? mask(pixblack.key) : null, source: pixblack.source },
       },
       webhook: xpayWebhook,
       ironpayConfig,
+      pixblackWebhook,
     };
   });
 
@@ -245,5 +268,47 @@ export const deleteIronPayProductOfferFn = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     assertAdmin(data.password);
     await deleteIronPayProductOffer();
+    return { ok: true };
+  });
+
+export const savePixBlackApiKeyFn = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => pw.extend({ key: z.string().trim().min(10).max(1000) }).parse(d))
+  .handler(async ({ data }) => {
+    assertAdmin(data.password);
+    await savePixBlackApiKey(data.key);
+    return { ok: true };
+  });
+
+export const deletePixBlackApiKeyFn = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => pw.parse(d))
+  .handler(async ({ data }) => {
+    assertAdmin(data.password);
+    await deletePixBlackApiKey();
+    return { ok: true };
+  });
+
+/** Teste read-only da API Pix Black; consulta UUID inexistente e nunca cria uma cobrança. */
+export const testPixBlackFn = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => pw.parse(d))
+  .handler(async ({ data }) => {
+    assertAdmin(data.password);
+    return testPixBlackApiKey();
+  });
+
+export const savePixBlackWebhookSecretFn = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) =>
+    pw.extend({ secret: z.string().trim().min(16).max(1000) }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    assertAdmin(data.password);
+    await savePixBlackWebhookSecret(data.secret);
+    return { ok: true };
+  });
+
+export const deletePixBlackWebhookSecretFn = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => pw.parse(d))
+  .handler(async ({ data }) => {
+    assertAdmin(data.password);
+    await deletePixBlackWebhookSecret();
     return { ok: true };
   });

@@ -21,6 +21,11 @@ import {
   testSagacePayFn,
   testUmbrellaFn,
   testXPayFn,
+  deletePixBlackApiKeyFn,
+  deletePixBlackWebhookSecretFn,
+  savePixBlackApiKeyFn,
+  savePixBlackWebhookSecretFn,
+  testPixBlackFn,
 } from "@/lib/pix-gateway.functions";
 import {
   deleteIronPayApiTokenFn,
@@ -30,8 +35,8 @@ import {
   testIronPayFn,
 } from "@/lib/pix-gateway.functions";
 
-type Gateway = "pixgate" | "umbrella" | "sagacepay" | "xpay" | "ironpay";
-const GATEWAYS = ["pixgate", "umbrella", "sagacepay", "xpay", "ironpay"] as const;
+type Gateway = "pixgate" | "umbrella" | "sagacepay" | "xpay" | "ironpay" | "pixblack";
+const GATEWAYS = ["pixgate", "umbrella", "sagacepay", "xpay", "ironpay", "pixblack"] as const;
 type KeyInfo = { key: string | null; source: "admin" | "secret" | null };
 type WebhookInfo = { configured: boolean; source: "admin" | "secret" | null };
 type IronPayConfigInfo = {
@@ -47,6 +52,7 @@ type Status = {
   keys: Record<Gateway, KeyInfo>;
   webhook: WebhookInfo;
   ironpayConfig: IronPayConfigInfo;
+  pixblackWebhook: WebhookInfo;
 };
 
 const LABEL: Record<Gateway, string> = {
@@ -55,6 +61,7 @@ const LABEL: Record<Gateway, string> = {
   sagacepay: "SagacePay",
   xpay: "XPay",
   ironpay: "IronPay",
+  pixblack: "Pix Black",
 };
 const SECRET: Record<Gateway, string> = {
   pixgate: "PIXGATE_API_KEY",
@@ -62,6 +69,7 @@ const SECRET: Record<Gateway, string> = {
   sagacepay: "SAGACEPAY_API_KEY",
   xpay: "XPAY_API_KEY",
   ironpay: "IRONPAY_API_TOKEN",
+  pixblack: "PIXBLACK_API_KEY",
 };
 
 /** Escolha do gateway do Pix e gestão das credenciais. */
@@ -87,12 +95,18 @@ export function PixGatewayCard({ password }: { password: string }) {
   const testIronPay = useServerFn(testIronPayFn);
   const saveIronPayConfig = useServerFn(saveIronPayProductOfferFn);
   const deleteIronPayConfig = useServerFn(deleteIronPayConfigFn);
+  const savePixBlackKey = useServerFn(savePixBlackApiKeyFn);
+  const deletePixBlackKey = useServerFn(deletePixBlackApiKeyFn);
+  const testPixBlack = useServerFn(testPixBlackFn);
+  const savePixBlackWebhook = useServerFn(savePixBlackWebhookSecretFn);
+  const deletePixBlackWebhook = useServerFn(deletePixBlackWebhookSecretFn);
   const keyFns = {
     pixgate: { save: savePixgateFn, remove: deletePixgateFn, test: testPixgate },
     umbrella: { save: saveUmbrellaFn, remove: deleteUmbrellaFn, test: testUmbrella },
     sagacepay: { save: saveSagaceFn, remove: deleteSagaceFn, test: testSagace },
     xpay: { save: saveXpayFn, remove: deleteXpayFn, test: testXpay },
     ironpay: { save: saveIronPayToken, remove: deleteIronPayToken, test: testIronPay },
+    pixblack: { save: savePixBlackKey, remove: deletePixBlackKey, test: testPixBlack },
   };
 
   const [status, setStatus] = useState<Status | null>(null);
@@ -168,6 +182,18 @@ export function PixGatewayCard({ password }: { password: string }) {
       return "Segredo do webhook XPay apagado do painel.";
     });
 
+  const savePixBlackWebhookSecret = (secret: string) =>
+    run("save-pixblack-webhook", async () => {
+      await savePixBlackWebhook({ data: { password, secret } });
+      return "Segredo do webhook Pix Black salvo no armazenamento privado.";
+    });
+
+  const deletePixBlackWebhookSecret = () =>
+    run("delete-pixblack-webhook", async () => {
+      await deletePixBlackWebhook({ data: { password } });
+      return "Segredo do webhook Pix Black apagado do painel.";
+    });
+
   /** Consulta o gateway com a chave em uso, sem gerar Pix nem pedido. */
   const testKey = (gateway: Gateway) =>
     run(`test-${gateway}`, async () => {
@@ -196,7 +222,7 @@ export function PixGatewayCard({ password }: { password: string }) {
         </span>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-6">
         {GATEWAYS.map((g) => (
           <Button
             key={g}
@@ -211,7 +237,9 @@ export function PixGatewayCard({ password }: { password: string }) {
                 ? ` (${status.keys.xpay.key ? "sem webhook" : "sem chave"})`
                 : g === "ironpay"
                   ? ` (${status.keys.ironpay.key ? "sem oferta/produto" : "sem token"})`
-                  : " (sem chave)"
+                  : g === "pixblack"
+                    ? ` (${status.keys.pixblack.key ? "sem webhook" : "sem chave"})`
+                    : " (sem chave)"
               : ""}
           </Button>
         ))}
@@ -249,6 +277,14 @@ export function PixGatewayCard({ password }: { password: string }) {
               busy={busy}
               onSave={saveIronPaySettings}
               onDelete={deleteIronPaySettings}
+            />
+          )}
+          {g === "pixblack" && status && (
+            <PixBlackWebhookSection
+              info={status.pixblackWebhook}
+              busy={busy}
+              onSave={savePixBlackWebhookSecret}
+              onDelete={deletePixBlackWebhookSecret}
             />
           )}
         </Fragment>
@@ -391,6 +427,77 @@ function XPayWebhookSection({
           onClick={onDelete}
         >
           {busy === "delete-xpay-webhook" ? "Apagando…" : "Apagar segredo salvo"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function PixBlackWebhookSection({
+  info,
+  busy,
+  onSave,
+  onDelete,
+}: {
+  info: WebhookInfo;
+  busy: string | null;
+  onSave: (secret: string) => Promise<boolean>;
+  onDelete: () => Promise<boolean>;
+}) {
+  const [secret, setSecret] = useState("");
+
+  return (
+    <div className="flex flex-col gap-2 border-t pt-4">
+      <div className="flex items-center justify-between gap-4">
+        <div className="text-sm font-medium">Segredo de assinatura do webhook Pix Black</div>
+        <span
+          className={`text-xs whitespace-nowrap ${info.configured ? "text-emerald-600" : "text-destructive"}`}
+        >
+          {info.source === "admin"
+            ? "Segredo salvo no painel"
+            : info.source === "secret"
+              ? "Secret do servidor"
+              : "Não configurado"}
+        </span>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        No painel Pix Black, cadastre esta URL para os eventos <code>charge.paid</code> e
+        <code> charge.expired</code>:
+      </p>
+      <code className="break-all rounded bg-muted px-2 py-1 text-xs">
+        https://www.dexcomg7.store/api/public/pix-webhook?gw=pb
+      </code>
+      <p className="text-xs text-muted-foreground">
+        Cole aqui o segredo <code>whsec_...</code>. A aplicação valida o HMAC sobre o corpo bruto e
+        consulta a cobrança e o valor na API antes de confirmar o pedido.
+      </p>
+      <Input
+        type="password"
+        autoComplete="off"
+        aria-label="Segredo do webhook Pix Black"
+        placeholder={
+          info.configured
+            ? "Segredo salvo (deixe vazio para manter)"
+            : "Segredo do webhook Pix Black"
+        }
+        value={secret}
+        onChange={(e) => setSecret(e.target.value)}
+      />
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          size="sm"
+          disabled={secret.trim().length < 16 || !!busy}
+          onClick={() => onSave(secret.trim()).then((ok) => ok && setSecret(""))}
+        >
+          {busy === "save-pixblack-webhook" ? "Salvando…" : "Salvar segredo Pix Black"}
+        </Button>
+        <Button
+          size="sm"
+          variant="destructive"
+          disabled={info.source !== "admin" || !!busy}
+          onClick={onDelete}
+        >
+          {busy === "delete-pixblack-webhook" ? "Apagando…" : "Apagar segredo salvo"}
         </Button>
       </div>
     </div>

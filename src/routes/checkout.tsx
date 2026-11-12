@@ -369,7 +369,12 @@ function Page() {
 
   const pixErrorMessage = (error: unknown) => {
     const message = error instanceof Error ? error.message.trim() : "";
-    if (message.startsWith("XPay:") || message.startsWith("IronPay:")) return message.slice(0, 240);
+    if (
+      message.startsWith("XPay:") ||
+      message.startsWith("IronPay:") ||
+      message.startsWith("Pix Black:")
+    )
+      return message.slice(0, 240);
     if (/failed to fetch|networkerror|load failed/i.test(message)) {
       return "Falha de conexão com o servidor da loja. A tentativa pode ter chegado ao gateway; confira o painel de pagamentos antes de tentar novamente.";
     }

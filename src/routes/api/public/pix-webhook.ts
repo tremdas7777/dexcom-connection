@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-// Notificações da PixGate, Umbrella, SagacePay, XPay, IronPay e HyperCash.
+// Notificações da PixGate, Umbrella, SagacePay, XPay, IronPay, Pix Black e HyperCash.
 // O corpo do webhook nunca é suficiente para marcar venda como paga: consultamos o gateway autenticado.
 export const Route = createFileRoute("/api/public/pix-webhook")({
   server: {
@@ -8,9 +8,77 @@ export const Route = createFileRoute("/api/public/pix-webhook")({
       POST: async ({ request }) => {
         const url = new URL(request.url);
         const gw = url.searchParams.get("gw");
-        const rawBody = await request.text();
+        const rawBodyBytes = new Uint8Array(await request.arrayBuffer());
+        const rawBody = new TextDecoder().decode(rawBodyBytes);
         // eslint-disable-next-line @typescript-eslint/no-explicit-any -- payload do gateway externo sem tipo gerado
         let body: any = null;
+
+        if (gw === "pb") {
+          const {
+            getPixBlackWebhookSecret,
+            isPixBlackOrderId,
+            PIXBLACK_ORDER_PREFIX,
+            verifyPixBlackWebhookSignature,
+          } = await import("@/lib/pixblack.server");
+          const secret = await getPixBlackWebhookSecret();
+          if (!secret) return Response.json({ ok: false }, { status: 503 });
+          if (
+            !verifyPixBlackWebhookSignature(
+              rawBodyBytes,
+              request.headers.get("x-pixblack-signature"),
+              secret,
+            )
+          ) {
+            return Response.json({ ok: false, error: "invalid signature" }, { status: 401 });
+          }
+          try {
+            body = JSON.parse(rawBody);
+          } catch {
+            return Response.json({ ok: false, error: "invalid JSON" }, { status: 400 });
+          }
+          const eventHeader = request.headers.get("x-pixblack-event");
+          if (eventHeader && eventHeader !== body?.type) {
+            return Response.json({ ok: false, error: "event mismatch" }, { status: 400 });
+          }
+          if (body?.type === "ping" || eventHeader === "ping") return Response.json({ ok: true });
+          if (body?.type !== "charge.paid") return Response.json({ ok: true });
+
+          const rawChargeId = body?.data?.charge_id;
+          const chargeId = rawChargeId == null ? "" : String(rawChargeId);
+          if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(chargeId)) {
+            return Response.json({ ok: true });
+          }
+          const id = `${PIXBLACK_ORDER_PREFIX}${chargeId}`;
+          if (!isPixBlackOrderId(id)) return Response.json({ ok: true });
+          try {
+            const { fetchGatewayStatus, getOrder, reportPaidOnce, isPaidStatus } =
+              await import("@/lib/pix-orders.server");
+            const order = await getOrder(id);
+            if (!order) {
+              console.error("pixblack webhook order not found", { orderId: id });
+              return Response.json({ ok: false }, { status: 503 });
+            }
+            const { status, amount } = await fetchGatewayStatus(id);
+            if (!isPaidStatus(status)) return Response.json({ ok: true });
+            if (amount !== order.amount_cents) {
+              console.error("pixblack webhook amount mismatch", {
+                orderId: id,
+                expectedCents: order.amount_cents,
+                receivedCents: amount,
+              });
+              return Response.json({ ok: true });
+            }
+            await reportPaidOnce(id, amount);
+            return Response.json({ ok: true });
+          } catch (error) {
+            console.error("pixblack webhook failed", {
+              orderId: id,
+              errorName: error instanceof Error ? error.name : "unknown",
+            });
+            return Response.json({ ok: false }, { status: 503 });
+          }
+        }
+
         try {
           body = JSON.parse(rawBody);
         } catch {

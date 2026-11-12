@@ -17,6 +17,14 @@ import {
   IRONPAY_ORDER_PREFIX,
 } from "@/lib/ironpay.server";
 import {
+  createPixBlackCharge,
+  getPixBlackApiKey,
+  getPixBlackWebhookSecret,
+  isPixBlackOrderId,
+  pixBlackStatus,
+  PIXBLACK_ORDER_PREFIX,
+} from "@/lib/pixblack.server";
+import {
   createXPayPix,
   getXPayKey,
   getXPayWebhookSecret,
@@ -25,7 +33,14 @@ import {
   xPayStatus,
 } from "@/lib/xpay.server";
 
-export const PIX_GATEWAYS = ["pixgate", "umbrella", "sagacepay", "xpay", "ironpay"] as const;
+export const PIX_GATEWAYS = [
+  "pixgate",
+  "umbrella",
+  "sagacepay",
+  "xpay",
+  "ironpay",
+  "pixblack",
+] as const;
 export type PixGateway = (typeof PIX_GATEWAYS)[number];
 export const PIX_GATEWAY_LABEL: Record<PixGateway, string> = {
   umbrella: "Umbrella",
@@ -33,6 +48,7 @@ export const PIX_GATEWAY_LABEL: Record<PixGateway, string> = {
   sagacepay: "SagacePay",
   xpay: "XPay",
   ironpay: "IronPay",
+  pixblack: "Pix Black",
 };
 
 /** Pedidos Pix da Umbrella são guardados com este prefixo (os da PixGate ficam sem prefixo). */
@@ -45,6 +61,8 @@ export const isSagacePayOrderId = (id: string) => id.startsWith(SAGACEPAY_ORDER_
 export { XPAY_ORDER_PREFIX };
 /** Pedidos Pix da IronPay são guardados com este prefixo. */
 export { IRONPAY_ORDER_PREFIX };
+/** Pedidos Pix Black guardam este prefixo para continuar no gateway de origem. */
+export { PIXBLACK_ORDER_PREFIX };
 
 /** O Pix da SagacePay expira em 30 minutos (mesmo prazo mostrado no checkout). */
 const PIX_EXPIRES_IN_SECONDS = 30 * 60;
@@ -73,13 +91,24 @@ async function savedChoice(): Promise<PixGateway | null> {
 
 /** Quais gateways estão prontos para uso (chaves do painel ou secrets do servidor). */
 async function configured(): Promise<Record<PixGateway, boolean>> {
-  const [umbrella, pixgate, sagacepay, xpayKey, xpayWebhookSecret, ironpay] = await Promise.all([
+  const [
+    umbrella,
+    pixgate,
+    sagacepay,
+    xpayKey,
+    xpayWebhookSecret,
+    ironpay,
+    pixblackKey,
+    pixblackWebhook,
+  ] = await Promise.all([
     getUmbrellaKey().catch(() => null),
     getPixgateKey().catch(() => null),
     getSagacePayKey().catch(() => null),
     getXPayKey().catch(() => null),
     getXPayWebhookSecret().catch(() => null),
     getIronPaySettings().catch(() => ({ apiToken: null, offerHash: null, productHash: null })),
+    getPixBlackApiKey().catch(() => null),
+    getPixBlackWebhookSecret().catch(() => null),
   ]);
   return {
     umbrella: !!umbrella,
@@ -87,6 +116,7 @@ async function configured(): Promise<Record<PixGateway, boolean>> {
     sagacepay: !!sagacepay,
     xpay: !!xpayKey && !!xpayWebhookSecret,
     ironpay: !!ironpay.apiToken && !!ironpay.offerHash && !!ironpay.productHash,
+    pixblack: !!pixblackKey && !!pixblackWebhook,
   };
 }
 
@@ -116,6 +146,9 @@ export async function savePixGateway(gateway: PixGateway): Promise<void> {
     }
     if (gateway === "xpay") {
       throw new Error("Cadastre a chave API e o segredo do webhook da XPay antes de ativá-la.");
+    }
+    if (gateway === "pixblack") {
+      throw new Error("Cadastre a chave API e o segredo do webhook Pix Black antes de ativá-la.");
     }
     throw new Error(`Cadastre a chave da ${PIX_GATEWAY_LABEL[gateway]} antes de ativá-la.`);
   }
@@ -182,6 +215,15 @@ export async function createPix(o: {
     });
     return { ...tx, id: `${IRONPAY_ORDER_PREFIX}${tx.id}` };
   }
+  if (active === "pixblack") {
+    const tx = await createPixBlackCharge({
+      amount: o.amount,
+      customer: o.customer,
+      description: o.description,
+      idempotencyKey: o.idempotencyKey,
+    });
+    return { ...tx, id: `${PIXBLACK_ORDER_PREFIX}${tx.id}` };
+  }
   return pixgateCashin({ ...o, postback: webhook });
 }
 
@@ -194,6 +236,7 @@ export async function fetchPixStatus(id: string): Promise<{ status: string; amou
   if (isSagacePayOrderId(id)) return sagaceStatus(id.slice(SAGACEPAY_ORDER_PREFIX.length));
   if (isXPayOrderId(id)) return xPayStatus(id.slice(XPAY_ORDER_PREFIX.length));
   if (isIronPayOrderId(id)) return ironPayStatus(id.slice(IRONPAY_ORDER_PREFIX.length));
+  if (isPixBlackOrderId(id)) return pixBlackStatus(id.slice(PIXBLACK_ORDER_PREFIX.length));
   return pixgateStatus(id);
 }
 
