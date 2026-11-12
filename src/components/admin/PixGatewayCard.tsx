@@ -138,8 +138,9 @@ export function PixGatewayCard({ password }: { password: string }) {
   const testKey = (gateway: Gateway) =>
     run(`test-${gateway}`, async () => {
       const r = await keyFns[gateway].test({ data: { password } });
+      const details = "details" in r ? r.details : undefined;
       return r.ok
-        ? `Chave da ${LABEL[gateway]} aceita (teste sem gerar pedido).`
+        ? `Chave da ${LABEL[gateway]} aceita (teste sem gerar pedido).${details ? ` ${details}` : ""}`
         : `Chave da ${LABEL[gateway]} com problema: ${r.error ?? `erro ${r.status ?? ""}`}`;
     });
 

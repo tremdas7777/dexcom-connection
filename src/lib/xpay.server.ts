@@ -109,12 +109,35 @@ export async function testXPayKey(): Promise<{
   ok: boolean;
   status?: number | undefined;
   error?: string | undefined;
+  details?: string | undefined;
 }> {
   const key = await getXPayKey();
   if (!key) return { ok: false, error: "Nenhuma chave cadastrada" };
   try {
     const res = await fetch(`${XPAY_API}/charge/sales-limits`, { headers: await headers(key) });
-    if (res.ok) return { ok: true, status: res.status };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- resposta externa sem tipo gerado
+    const json = (await res.json().catch(() => null)) as any;
+    if (res.ok) {
+      const data = json?.data;
+      const monthly = data?.monthly;
+      const money = (cents: unknown) =>
+        typeof cents === "number" && Number.isFinite(cents)
+          ? `R$ ${(cents / 100).toFixed(2).replace(".", ",")}`
+          : "não informado";
+      const accountType =
+        data?.accountType === "INDIVIDUAL"
+          ? "pessoa física"
+          : data?.accountType === "BUSINESS"
+            ? "pessoa jurídica"
+            : "tipo não informado";
+      const details =
+        data?.hasLimits === true && monthly
+          ? `Conta ${accountType}; limite mensal ${money(monthly.limitCents)}, usado ${money(monthly.usedCents)}, disponível ${money(monthly.availableCents)}.`
+          : data?.hasLimits === false
+            ? `Conta ${accountType}; sem limite mensal informado.`
+            : `Conta ${accountType}; limite mensal não informado pela API.`;
+      return { ok: true, status: res.status, details };
+    }
     return {
       ok: false,
       status: res.status,
